@@ -61,6 +61,7 @@ class QuoteFeed(Feed):
     def post_to_all(self):
         client = self._client
         quotes = client.get_market_prices(market_id=self._market_id)
+        quotes['timestamp'] = client.API_TIMESTAMP
         for sub in self.subscribers:
             sub(client.API_TIMESTAMP, quotes)
 
@@ -70,6 +71,11 @@ class TradeFeed(Feed):
         super(TradeFeed, self).__init__(client, subscribers)
         self._market_id = market_id
         self._last = self.get_traded_volume()
+
+
+    @property
+    def market_id(self):
+        return self._market_id
 
 
     def get_traded_volume(self):
@@ -82,8 +88,12 @@ class TradeFeed(Feed):
         trades = {}
         for sel_id, vol in self._last.items():
             sel_trades = (curr[sel_id] - vol)
-            trades[sel_id] = sel_trades[sel_trades >= 2]
+            sel_trades = sel_trades[sel_trades >= 2]
+            trades[sel_id] = sel_trades
         self._last = curr
+
+        trades = {'timestamp': self._client.API_TIMESTAMP,
+                  'runners': trades}
 
         for sub in self.subscribers:
             sub(self._client.API_TIMESTAMP, trades)
