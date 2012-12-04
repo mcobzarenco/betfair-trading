@@ -80,6 +80,8 @@ class TradeFeed(Feed):
 
     def get_traded_volume(self):
         tv = self._client.get_market_traded_volume(self._market_id)
+        if isinstance(tv, str):
+            return None
         return dict(map(lambda x: (x['selection_id'], pd.DataFrame(x['volumes']).set_index('price').amount), tv))
 
 
