@@ -6,6 +6,7 @@ import numpy as np
 from numpy import array, argmax, repeat, sqrt, empty, argsort
 from scipy import randn
 from scipy.stats import norm
+from scipy.optimize import minimize
 
 from trueskill import Rating, rate
 
@@ -32,13 +33,35 @@ def pwin_mc(rs):
     return wins
 
 
+class RiskModel(object):
+    def __init__(self, alpha, covariance, risk_aversion):
+        assert covariance.shape == (len(alpha), len(alpha))
+        self.N = len(alpha)
+        self.a = alpha
+        self.C = covariance
+        self.ra = risk_aversion
+
+
+    def adj_return(self, w):
+        return np.dot(self.a, w) - self.ra * np.dot(np.dot(w, self.C), w)
+
+
+    def optimal_w(self):
+        constraints = [{'type': 'eq',
+                        'fun': lambda w: sum(w) - 1,
+                        'jac': lambda w: np.ones_like(w)}]
+        min = minimize(lambda w: -self.adj_return(w), np.ones(self.N) / self.N, method='SLSQP', constraints=constraints)
+        return min['x']
+
+
+
 class HorseModel(object):
     def __init__(self):
         pass
 
 
     def fit(self, sorted_games):
-        ratings = defaultdict(lambda: {'rating': (Rating(),), 'n_games': 0, 'n_wins': 0})
+        ratings = HorseModel._create_ratings()
         stats = {'n_games':0}
 
         curr_game = 0
@@ -55,7 +78,7 @@ class HorseModel(object):
             rating_groups = [ratings[r]['rating'] for r in runners]
             ranks = [int(r not in winners) for r in runners]
             new_ratings = rate(rating_groups, ranks)
-            assert len(new_ratings) == len(runners)
+            # assert len(new_ratings) == len(runners)
             for i, runner in enumerate(runners):
                 rating = ratings[runner]
                 rating['rating'] = new_ratings[i]
@@ -75,7 +98,7 @@ class HorseModel(object):
 
     def pwin(self, runners, nwins=1, prior_for_unobs=True):
         assert(prior_for_unobs)
-        N = 10000
+        N = 20000
         R = empty((len(runners), N))
         for i, r in enumerate(self.get_ratings(runners)):
             R[i, :] = randn(N) * r.sigma + r.mu
@@ -90,7 +113,7 @@ class HorseModel(object):
         if not hasattr(self, '_ratings'):
             return []
         items = self._ratings.items()
-        dicts = map(lambda x: {'runner': x[0], 'mu': x[1]['rating'][0].mu, 'sigma': x[1]['rating'][0].sigma,
+        dicts = map(lambda x: {'    runner': x[0], 'mu': x[1]['rating'][0].mu, 'sigma': x[1]['rating'][0].sigma,
                                'n_wins': x[1]['n_wins'], 'n_games': x[1]['n_games']}, items)
         return dicts
 
@@ -99,6 +122,21 @@ class HorseModel(object):
         return [self._ratings[x]['rating'][0] for x in runners]
 
 
+    @staticmethod
+    def from_dict(dicts):
+        hm = HorseModel()
+        ratings = HorseModel._create_ratings()
+        for d in dicts:
+            ratings[d['runner']] = {'rating': (Rating(d['mu'], d['sigma']), ),
+                                 'n_games': d['n_games'],
+                                 'n_wins': d['n_wins']}
+        hm._ratings = ratings
+        return hm
+
+
+    @staticmethod
+    def _create_ratings():
+        return defaultdict(lambda: {'rating': (Rating(),), 'n_games': 0, 'n_wins': 0})
 
 
     #ms = c.get_all_markets(hours=24, countries=['GBR'])
