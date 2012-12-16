@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from betfair import api
-from feeds import MasterTimer, QuoteFeed, TradeFeed
+from harb.feeds import MasterTimer, QuoteFeed
 from robot import Robot
 
 
@@ -103,16 +103,16 @@ def main(args):
     bot = LiquidBot1(client, args.market_id, args.selection_id)
     mt = MasterTimer()
     qf = QuoteFeed(client, args.market_id, [bot.process_quotes])
-    tf = TradeFeed(client, args.market_id)
+    #tf = TradeFeed(client, args.market_id)
     mt.add_feed(qf, 1)
-    mt.add_feed(tf, 1)
+    #mt.add_feed(tf, 1)
     mt.run()
 
 
 
 
 
-parser = argparse.ArgumentParser(description='Process some integers.')
+parser = argparse.ArgumentParser()
 parser.add_argument('market_id', metavar='MARKET_ID',  help='Market ID')
 parser.add_argument('selection_id', metavar='SELECTION_ID',  help='Selection ID')
 args = parser.parse_args()

@@ -4,12 +4,12 @@ from __future__ import division, print_function
 import logging
 import pymongo
 
-from settings import MONGODB_HOST, MONGODB_PORT, MONGODB_DB
+from settings import MONGODB_HOST, MONGODB_PORT, OPERATIONS_DB
 
 
 class MarketStore(object):
     def __init__(self, client, market_id, quote_feed, trade_feed,
-                 db=MONGODB_DB, host=MONGODB_HOST, port=MONGODB_PORT):
+                 db=OPERATIONS_DB, host=MONGODB_HOST, port=MONGODB_PORT):
         assert(market_id == quote_feed.market_id)
         assert(market_id == trade_feed.market_id)
 
@@ -43,9 +43,8 @@ class MarketStore(object):
 
 
 if __name__ == '__main__':
-    import argparse
     from betfair import api
-    from feeds import MasterTimer, QuoteFeed, TradeFeed
+    from harb.feeds import MasterTimer, QuoteFeed, TradeFeed
 
     import sys
 

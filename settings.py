@@ -4,5 +4,6 @@ PASSWORD = 'Antiquark_87'
 MONGODB_HOST = 'localhost'
 MONGODB_PORT = 33000
 
-MONGODB_DB = 'betfair'
+OPERATIONS_DB = 'betfair'
+HARB_DB = 'horses'
 

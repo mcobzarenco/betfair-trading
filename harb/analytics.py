@@ -1,6 +1,7 @@
 from __future__ import print_function, division
 
 from collections import defaultdict
+import logging
 
 import numpy as np
 from numpy import array, argmax, repeat, sqrt, empty, argsort
@@ -60,35 +61,31 @@ class HorseModel(object):
         pass
 
 
-    def fit(self, sorted_games):
+    def fit(self, sorted_games, log_incremental=None):
         ratings = HorseModel._create_ratings()
-        stats = {'n_games':0}
+        stats = {'n_games': 0}
 
-        curr_game = 0
-        for game in sorted_games:
-            winners = game['winners']
-            if winners is None:
-                continue
-
-            runners = list(game['selection'])
+        for (i, game) in enumerate(sorted_games):
+            runners = list(game['runners'])
             if len(runners) < 2:
                 continue
-
             stats['n_games'] += 1
             rating_groups = [ratings[r]['rating'] for r in runners]
-            ranks = [int(r not in winners) for r in runners]
-            new_ratings = rate(rating_groups, ranks)
-            # assert len(new_ratings) == len(runners)
+            new_ratings = rate(rating_groups, game['ranking'])
+            assert len(new_ratings) == len(runners)
+
             for i, runner in enumerate(runners):
                 rating = ratings[runner]
                 rating['rating'] = new_ratings[i]
                 rating['n_games'] += 1
-                if runner in winners:
+                if runner in game['winners']:
                     rating['n_wins'] += 1
 
-            curr_game+= 1
-            if curr_game % 1000 == 0:
-                print('%d games done.' % curr_game)
+            if log_incremental is not None:
+                log_incremental(dict(zip(runners, new_ratings)), game)
+
+            if i % 1000 == 0:
+                logging.info('HorseModel.fit: %d games done' % i)
 
         stats['n_runners'] = len(ratings)
         self._ratings = ratings
@@ -97,7 +94,7 @@ class HorseModel(object):
 
 
     def pwin(self, runners, nwins=1, prior_for_unobs=True):
-        assert(prior_for_unobs)
+        assert prior_for_unobs
         N = 20000
         R = empty((len(runners), N))
         for i, r in enumerate(self.get_ratings(runners)):
