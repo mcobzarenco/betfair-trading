@@ -9,7 +9,7 @@ from scipy import randn
 from scipy.stats import norm
 from scipy.optimize import minimize
 
-from trueskill import Rating, rate
+from trueskill import TrueSkill, Rating, rate
 
 
 def pwin_1vs1(r1, r2):
@@ -57,39 +57,65 @@ class RiskModel(object):
 
 
 class HorseModel(object):
-    def __init__(self):
-        pass
+    def __init__(self, mu=25.0, sigma=8.333, beta=4.166, tau=0.0833, draw_probability=0.0):
+        """ mu - the initial mean of ratings
+            sigma - the initial standard deviation of ratings
+            beta - the distance that guarantees about an 80% chance of winning
+            tau - the dynamic factor
+            draw_probability - the draw probability of the game"""
+        self._ts = TrueSkill(mu, sigma, beta, tau, draw_probability)
+        self._ratings = self._create_ratings()
 
 
-    def fit(self, sorted_games, log_incremental=None):
-        ratings = HorseModel._create_ratings()
-        stats = {'n_games': 0}
+    def _create_ratings(self):
+        return defaultdict(lambda: {'rating': (self._ts.create_rating(),),
+                                    'n_races': 0,
+                                    'n_wins': 0})
 
-        for (i, game) in enumerate(sorted_games):
-            runners = list(game['runners'])
+
+    def fit_race(self, race):
+        runners = race['selection']
+        rating_groups = [self._ratings[r]['rating'] for r in runners]
+        new_ratings = self._ts.rate(rating_groups, race['ranking'])
+
+        for i, runner in enumerate(runners):
+            horse = self._ratings[runner]
+            horse['rating'] = new_ratings[i]
+            horse['n_races'] += 1
+            if runner in race['winners']:
+                horse['n_wins'] += 1
+
+
+    def fit(self, sorted_races, log_incremental=None):
+        ratings = self._ratings
+        stats = {'n_races': 0}
+
+        for (i, race) in enumerate(sorted_races):
+            runners = list(race['selection'])
             if len(runners) < 2:
                 continue
-            stats['n_games'] += 1
+            stats['n_races'] += 1
             rating_groups = [ratings[r]['rating'] for r in runners]
-            new_ratings = rate(rating_groups, game['ranking'])
-            assert len(new_ratings) == len(runners)
+            new_ratings = self._ts.rate(rating_groups, race['ranking'])
 
+            # assert len(new_ratings) == len(runners)
+            diff = []
             for i, runner in enumerate(runners):
-                rating = ratings[runner]
-                rating['rating'] = new_ratings[i]
-                rating['n_games'] += 1
-                if runner in game['winners']:
-                    rating['n_wins'] += 1
+                horse = ratings[runner]
+                horse['rating'] = new_ratings[i]
+                horse['n_races'] += 1
+                if runner in race['winners']:
+                    horse['n_wins'] += 1
+                if log_incremental is not None:
+                    diff.append((runner, horse))
 
             if log_incremental is not None:
-                log_incremental(dict(zip(runners, new_ratings)), game)
+                log_incremental(race, dict(diff))
 
-            if i % 1000 == 0:
-                logging.info('HorseModel.fit: %d games done' % i)
+            if i % 100 == 0:
+                logging.info('HorseModel.fit: %d races done' % i)
 
         stats['n_runners'] = len(ratings)
-        self._ratings = ratings
-
         return stats
 
 
@@ -107,11 +133,12 @@ class HorseModel(object):
 
 
     def as_dict(self):
-        if not hasattr(self, '_ratings'):
-            return []
         items = self._ratings.items()
-        dicts = map(lambda x: {'    runner': x[0], 'mu': x[1]['rating'][0].mu, 'sigma': x[1]['rating'][0].sigma,
-                               'n_wins': x[1]['n_wins'], 'n_games': x[1]['n_games']}, items)
+        dicts = map(lambda x: {'runner': x[0],
+                               'mu': x[1]['rating'][0].mu,
+                               'sigma': x[1]['rating'][0].sigma,
+                               'n_races': x[1]['n_races'],
+                               'n_wins': x[1]['n_wins']}, items)
         return dicts
 
 
@@ -125,15 +152,13 @@ class HorseModel(object):
         ratings = HorseModel._create_ratings()
         for d in dicts:
             ratings[d['runner']] = {'rating': (Rating(d['mu'], d['sigma']), ),
-                                 'n_games': d['n_games'],
-                                 'n_wins': d['n_wins']}
+                                    'n_races': d['n_races'],
+                                    'n_wins': d['n_wins']}
         hm._ratings = ratings
         return hm
 
 
-    @staticmethod
-    def _create_ratings():
-        return defaultdict(lambda: {'rating': (Rating(),), 'n_games': 0, 'n_wins': 0})
+
 
 
     #ms = c.get_all_markets(hours=24, countries=['GBR'])

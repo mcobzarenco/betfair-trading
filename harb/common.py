@@ -3,6 +3,8 @@ from __future__ import print_function, division
 import logging
 import pymongo
 
+TO_BE_PLACED = 'TO BE PLACED'
+
 
 def configure_root_logger(to_stdout=True, file_out=None, level=logging.DEBUG, formatter=None):
     logger = logging.getLogger()
