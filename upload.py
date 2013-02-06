@@ -9,7 +9,13 @@ import dateutil
 import numpy as np
 import pandas as pd
 
-from harb.common import configure_root_logger
+from harb.common import configure_root_logger, TO_BE_PLACED
+
+
+SELECTION_BLACK_LIST = [
+    'lengths inclusive',
+    'any other individual jockey'
+]
 
 
 def pandas_to_dicts(df, mappers={}):
@@ -67,42 +73,36 @@ def vwao_from_bars(bars):
 
 def training_from_races(races):
     logging.info('Creating training set from races..')
-    races = races[races['runners'].map(lambda x: x is not None and len(x) > 0)]
-    races = races[races['winners'].map(lambda x: x is not None)]
+    races = races.dropna(subset=['selection', 'winners'])
+    races = races[races['selection'].map(lambda x: len(x) > 0)]
 
-    races['sel_str'] = races['runners'].map(lambda x: reduce(lambda a, b: a + b, sorted(x)))
-    gb = races.groupby('sel_str')
+    black_list = races['selection'].map(lambda xs: all([x not in SELECTION_BLACK_LIST for x in xs]))
+    logging.info('%d races removed using the selection black list' % (len(black_list) - sum(black_list)))
+    races = races[black_list]
 
     frames = []
-    for (sel_str, events) in gb:
+    for (_, events) in races.groupby(['course', 'scheduled_off']):
         if len(events) == 1:
             events = events.irow(0).to_dict()
             events['event'] = [events['event']]
             events['event_id'] = int(events['event_id'])
-            try:
-                events['ranking'] = [int(r not in events['winners']) for r in events['runners']]
-            except:
-                print(events)
-                break
-            # del events['sel_str']
+            events['ranking'] = [int(r not in events['winners']) for r in events['selection']]
             frames.append(events)
         elif len(events) == 2:
-            placed = events[events['event'].map(lambda s: s.upper()) == 'TO BE PLACED']
+            placed = events[events['event'].map(lambda s: s.upper()) == TO_BE_PLACED]
             if len(placed) != 1:
                 continue
             placed = placed.irow(0).to_dict()
-            placed['ranking'] = [int(r not in placed['winners']) + 1 for r in placed['runners']]
-            towin = events[events['event'] != 'TO BE PLACED']
+            placed['ranking'] = [int(r not in placed['winners']) + 1 for r in placed['selection']]
+            towin = events[events['event'] != TO_BE_PLACED]
             towin = towin.irow(0).to_dict()
 
             if len(towin['winners']) > 1:
                 continue
 
-            assert(len(towin['winners']) == 1)
-            placed['ranking'][placed['runners'].index(towin['winners'][0])] = 0
+            placed['ranking'][placed['selection'].index(towin['winners'][0])] = 0
             placed['event'] = [placed['event'], towin['event']]
-            placed['event_id'] = [placed['event_id'], towin['event_id']]
-            # del placed['sel_str']
+            placed['event_id'] = [int(placed['event_id']), int(towin['event_id'])]
             frames.append(placed)
     return frames
 
@@ -149,14 +149,12 @@ if __name__ == '__main__':
             bars['selection'] = bars['selection'].map(extract_name)
 
             races = races_from_bars(bars).reset_index()
-            db[args.races].insert(pandas_to_dicts(races, {'event_id': int}))
-
             train = training_from_races(races)
-            db[args.train].insert(train)
-
             vwao = vwao_from_bars(bars).reset_index()
-            db[args.vwao].insert(pandas_to_dicts(vwao, {'event_id': int}))
 
+            db[args.train].insert(train)
+            db[args.races].insert(pandas_to_dicts(races, {'event_id': int}))
+            db[args.vwao].insert(pandas_to_dicts(vwao, {'event_id': int}))
             logging.info('Successfully uploaded to %s' % db)
     except Exception as e:
         logging.critical(e)
