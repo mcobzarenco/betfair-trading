@@ -57,7 +57,7 @@ class RiskModel(object):
 
 
 class HorseModel(object):
-    def __init__(self, mu=25.0, sigma=8.333, beta=4.166, tau=0.0833, draw_probability=0.0):
+    def __init__(self, mu=25.0, sigma=8.333, beta=4.166, tau=0.0833, draw_probability=0.1):
         """ mu - the initial mean of ratings
             sigma - the initial standard deviation of ratings
             beta - the distance that guarantees about an 80% chance of winning
