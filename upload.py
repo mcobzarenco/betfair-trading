@@ -109,62 +109,57 @@ def training_from_races(races):
                 continue
 
             placed['ranking'][placed['selection'].index(towin['winners'][0])] = 0
-            #TODO: investigate the error below
-            #CRITICAL:root:'counterbid' is not in list
-            #Traceback (most recent call last):
-            #File "./upload.py", line 156, in <module>
-            #
-            #File "./upload.py", line 105, in training_from_races
-            #placed['ranking'][placed['selection'].index(towin['winners'][0])] = 0
-            #ValueError: 'counterbid' is not in list
-
             towin['ranking'] = placed['ranking']
+
             frames.append(placed)
             frames.append(towin)
     return frames
 
 
-def upload(args, fname):
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s: %(message)s')
-    configure_root_logger(args.logtty, args.logfile, formatter=formatter)
-    db = MongoClient(args.host, args.port)[args.db]
+def upload(args):
+    args, path = args
+    parse = lambda x: dateutil.parser.parse(x, dayfirst=True)
 
     try:
-        for path in args.files:
-            dir, file_name = split(path)
-            file_part, ext = splitext(file_name)
-            if ext == '.zip':
-                logging.info("Reading zipped csv file '%s' into memory" % file_name)
-                input = zipfile.ZipFile(path, 'r').open(file_part + '.csv')
-            else:
-                logging.info("Reading csv file '%s' into memory" % file_name)
-                input = path
+        dir, file_name = split(path)
+        file_part, ext = splitext(file_name)
 
-            bars = pd.read_csv(input, parse_dates=['SCHEDULED_OFF'], date_parser=parse)
-            bars.columns = bars.columns.map(lambda x: x.lower())
+        formatter = logging.Formatter('%(asctime)s - ' + file_name +  ' - %(levelname)s: %(message)s')
+        configure_root_logger(args.logtty, args.logfile, formatter=formatter)
+        db = MongoClient(args.host, args.port)[args.db]
 
-            # Insert other filters here:
-            bars = bars[bars.in_play == 'PE']
-            bars['selection'] = bars['selection'].map(extract_name)
+        if ext == '.zip':
+            logging.info('Reading zipped csv file into memory')
+            input = zipfile.ZipFile(path, 'r').open(file_part + '.csv')
+        else:
+            logging.info('Reading csv file into memory' % file_name)
+            input = path
 
-            races = races_from_bars(bars).reset_index()
-            train = training_from_races(races)
-            vwao = vwao_from_bars(bars).reset_index()
+        bars = pd.read_csv(input, parse_dates=['SCHEDULED_OFF'], date_parser=parse)
+        bars.columns = bars.columns.map(lambda x: x.lower())
 
-            db[args.races].insert(pandas_to_dicts(races, {'event_id': int}))
-            db[args.train].insert(convert_types(train, {'event_id': int, 'n_runners': int}))
-            db[args.vwao].insert(pandas_to_dicts(vwao, {'event_id': int}))
-            logging.info('Successfully uploaded to %s' % db)
+        # Insert other filters here:
+        bars = bars[bars.in_play == 'PE']
+        bars['selection'] = bars['selection'].map(extract_name)
+
+        races = races_from_bars(bars).reset_index()
+        train = training_from_races(races)
+        vwao = vwao_from_bars(bars).reset_index()
+
+        db[args.races].insert(pandas_to_dicts(races, {'event_id': int}))
+        db[args.train].insert(convert_types(train, {'event_id': int, 'n_runners': int}))
+        db[args.vwao].insert(pandas_to_dicts(vwao, {'event_id': int}))
+        logging.info('Successfully uploaded to %s' % db)
     except Exception as e:
         logging.critical(e)
         raise
-
 
 
 if __name__ == '__main__':
     import zipfile
     from os.path import split, splitext
     import argparse
+    from multiprocessing import Pool, cpu_count
     from pymongo import MongoClient
 
 
@@ -173,6 +168,7 @@ if __name__ == '__main__':
     parser.add_argument('--host', type=str, action='store', default='localhost', help='MongoDB host (default=localhost)')
     parser.add_argument('--port', type=int, action='store', default=33000, help='MongoDB port (default=33000)')
     parser.add_argument('--db',type=str, action='store', default='betfair', help='db (default=betfair)')
+    parser.add_argument('--jobs', type=int, action='store', default=-1, help='how many jobs to use')
     parser.add_argument('--races',type=str, action='store', default='races', help='races collection (default=races)')
     parser.add_argument('--train',type=str, action='store', default='train', help='training set collection (default=train)')
     parser.add_argument('--vwao',type=str, action='store', default='vwao', help='volume-weighted-average-odds (vwao) collection (default=vwao)')
@@ -181,35 +177,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     configure_root_logger(args.logtty, args.logfile)
-    parse = lambda x: dateutil.parser.parse(x, dayfirst=True)
+    cpus = cpu_count() if args.jobs < 0 else args.jobs
 
-    db = MongoClient(args.host, args.port)[args.db]
-    try:
-        for path in args.files:
-            dir, file_name = split(path)
-            file_part, ext = splitext(file_name)
-            if ext == '.zip':
-                logging.info("Reading zipped csv file '%s' into memory" % file_name)
-                input = zipfile.ZipFile(path, 'r').open(file_part + '.csv')
-            else:
-                logging.info("Reading csv file '%s' into memory" % file_name)
-                input = path
-
-            bars = pd.read_csv(input, parse_dates=['SCHEDULED_OFF'], date_parser=parse)
-            bars.columns = bars.columns.map(lambda x: x.lower())
-
-            # Insert other filters here:
-            bars = bars[bars.in_play == 'PE']
-            bars['selection'] = bars['selection'].map(extract_name)
-
-            races = races_from_bars(bars).reset_index()
-            train = training_from_races(races)
-            vwao = vwao_from_bars(bars).reset_index()
-
-            db[args.races].insert(pandas_to_dicts(races, {'event_id': int}))
-            db[args.train].insert(convert_types(train, {'event_id': int, 'n_runners': int}))
-            db[args.vwao].insert(pandas_to_dicts(vwao, {'event_id': int}))
-            logging.info('Successfully uploaded to %s' % db)
-    except Exception as e:
-        logging.critical(e)
-        raise
+    logging.info('Creating a pool with %d worker processes..' % cpus)
+    pool = Pool(processes=cpus)
+    pool.map(upload, zip([args]*len(args.files), args.files))
