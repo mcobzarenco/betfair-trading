@@ -18,16 +18,21 @@ SELECTION_BLACK_LIST = [
 ]
 
 
-def pandas_to_dicts(df, mappers={}):
+def convert_types(dicts, mappers={}):
     def map_it(d):
         for (m, f) in mappers.items():
             if m in d:
                 d[m] = f(d[m])
         return d
+    return (map_it(d) for d in dicts)
+
+
+def pandas_to_dicts(df, mappers={}):
+    dicts = (df.ix[i].to_dict() for i in df.index)
     if len(mappers) == 0:
-        return (df.ix[i].to_dict() for i in df.index)
+        return dicts
     else:
-        return (map_it(df.ix[i].to_dict()) for i in df.index)
+        return convert_types(dicts, mappers)
 
 
 def extract_name(s):
@@ -80,31 +85,80 @@ def training_from_races(races):
     logging.info('%d races removed using the selection black list' % (len(black_list) - sum(black_list)))
     races = races[black_list]
 
+    races['n_runners'] = races['selection'].map(len)
+
     frames = []
-    for (_, events) in races.groupby(['course', 'scheduled_off']):
+    for (_, events) in races.groupby(['course', 'scheduled_off', 'n_runners']):
+        # print(len(events))
         if len(events) == 1:
             events = events.irow(0).to_dict()
-            events['event'] = [events['event']]
-            events['event_id'] = int(events['event_id'])
+            events['event'] = events['event']
             events['ranking'] = [int(r not in events['winners']) for r in events['selection']]
             frames.append(events)
         elif len(events) == 2:
-            placed = events[events['event'].map(lambda s: s.upper()) == TO_BE_PLACED]
+            placed = events[events['event'] == TO_BE_PLACED]
             if len(placed) != 1:
+                logging.warning('Skipping events with the same (course, time) with no|multiple "to be placed"; '
+                                'event_id: %s' % events['event_id'].tolist())
                 continue
             placed = placed.irow(0).to_dict()
             placed['ranking'] = [int(r not in placed['winners']) + 1 for r in placed['selection']]
-            towin = events[events['event'] != TO_BE_PLACED]
-            towin = towin.irow(0).to_dict()
+            towin = events[events['event'] != TO_BE_PLACED].irow(0).to_dict()
 
             if len(towin['winners']) > 1:
                 continue
 
             placed['ranking'][placed['selection'].index(towin['winners'][0])] = 0
-            placed['event'] = [placed['event'], towin['event']]
-            placed['event_id'] = [int(placed['event_id']), int(towin['event_id'])]
+            #TODO: investigate the error below
+            #CRITICAL:root:'counterbid' is not in list
+            #Traceback (most recent call last):
+            #File "./upload.py", line 156, in <module>
+            #
+            #File "./upload.py", line 105, in training_from_races
+            #placed['ranking'][placed['selection'].index(towin['winners'][0])] = 0
+            #ValueError: 'counterbid' is not in list
+
+            towin['ranking'] = placed['ranking']
             frames.append(placed)
+            frames.append(towin)
     return frames
+
+
+def upload(args, fname):
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s: %(message)s')
+    configure_root_logger(args.logtty, args.logfile, formatter=formatter)
+    db = MongoClient(args.host, args.port)[args.db]
+
+    try:
+        for path in args.files:
+            dir, file_name = split(path)
+            file_part, ext = splitext(file_name)
+            if ext == '.zip':
+                logging.info("Reading zipped csv file '%s' into memory" % file_name)
+                input = zipfile.ZipFile(path, 'r').open(file_part + '.csv')
+            else:
+                logging.info("Reading csv file '%s' into memory" % file_name)
+                input = path
+
+            bars = pd.read_csv(input, parse_dates=['SCHEDULED_OFF'], date_parser=parse)
+            bars.columns = bars.columns.map(lambda x: x.lower())
+
+            # Insert other filters here:
+            bars = bars[bars.in_play == 'PE']
+            bars['selection'] = bars['selection'].map(extract_name)
+
+            races = races_from_bars(bars).reset_index()
+            train = training_from_races(races)
+            vwao = vwao_from_bars(bars).reset_index()
+
+            db[args.races].insert(pandas_to_dicts(races, {'event_id': int}))
+            db[args.train].insert(convert_types(train, {'event_id': int, 'n_runners': int}))
+            db[args.vwao].insert(pandas_to_dicts(vwao, {'event_id': int}))
+            logging.info('Successfully uploaded to %s' % db)
+    except Exception as e:
+        logging.critical(e)
+        raise
+
 
 
 if __name__ == '__main__':
@@ -122,7 +176,7 @@ if __name__ == '__main__':
     parser.add_argument('--races',type=str, action='store', default='races', help='races collection (default=races)')
     parser.add_argument('--train',type=str, action='store', default='train', help='training set collection (default=train)')
     parser.add_argument('--vwao',type=str, action='store', default='vwao', help='volume-weighted-average-odds (vwao) collection (default=vwao)')
-    parser.add_argument('--logfile', type=str, help='specifies what log file to use', action='store')
+    parser.add_argument('--logfile', type=str, action='store', default=None, help='specifies what log file to use')
     parser.add_argument('--logtty', help='prints logging info to the terminal', action='store_true')
     args = parser.parse_args()
 
@@ -152,8 +206,8 @@ if __name__ == '__main__':
             train = training_from_races(races)
             vwao = vwao_from_bars(bars).reset_index()
 
-            db[args.train].insert(train)
             db[args.races].insert(pandas_to_dicts(races, {'event_id': int}))
+            db[args.train].insert(convert_types(train, {'event_id': int, 'n_runners': int}))
             db[args.vwao].insert(pandas_to_dicts(vwao, {'event_id': int}))
             logging.info('Successfully uploaded to %s' % db)
     except Exception as e:
