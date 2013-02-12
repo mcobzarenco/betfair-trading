@@ -4,8 +4,8 @@ from collections import defaultdict
 import logging
 
 import numpy as np
-from numpy import array, argmax, repeat, sqrt, empty, argsort
-from scipy import randn
+from numpy import array, sqrt, empty, argsort, zeros, ones, log, isnan, diag_indices_from, eye, dot, inf
+from scipy import rand, randn
 from scipy.stats import norm
 from scipy.optimize import minimize
 
@@ -44,16 +44,43 @@ class RiskModel(object):
 
 
     def adj_return(self, w):
-        return np.dot(self.a, w) - self.ra * np.dot(np.dot(w, self.C), w)
+        return dot(self.a, w) - self.ra * dot(dot(w, self.C), w)
 
 
     def optimal_w(self):
         constraints = [{'type': 'eq',
                         'fun': lambda w: sum(w) - 1,
                         'jac': lambda w: np.ones_like(w)}]
-        min = minimize(lambda w: -self.adj_return(w), np.ones(self.N) / self.N, method='SLSQP', constraints=constraints)
+        min = minimize(lambda w: -self.adj_return(w), ones(self.N) / self.N, method='SLSQP', constraints=constraints)
         return min['x']
 
+
+class RiskModel2(object):
+    def __init__(self, p, q, wealth=100):
+        self.N = len(p)
+        self.p = p
+        self.q = q
+        self.wealth = wealth
+
+    def exp_utility(self, w, q=None):
+        if q is None:
+            q = self.q
+
+        R = w.reshape(1, -1).repeat(self.N, 0)
+        R *= eye(R.shape[0]) - 1.0
+        ix = diag_indices_from(R)
+        R[ix] = w * (1.0 / q - 1.0)
+
+        payoffs = np.sum(R, 1)
+        #utility = np.sum(log((self.wealth + payoffs) / self.wealth) * self.p)
+        #return utility if not isnan(utility) else -inf
+        return np.sum(payoffs * self.p) - 0.2 * dot(w, w)
+
+    def optimal_w(self):
+        constraints = [{'type': 'eq',
+                        'fun': lambda w: sum(w * w) - 1}]
+        min = minimize(lambda w: -self.exp_utility(w), zeros(self.N), method='BFGS', options={'disp': True})
+        return min['x']
 
 
 class HorseModel(object):
@@ -121,7 +148,7 @@ class HorseModel(object):
 
     def pwin(self, runners, nwins=1, prior_for_unobs=True):
         assert prior_for_unobs
-        N = 20000
+        N = 1000
         R = empty((len(runners), N))
         for i, r in enumerate(self.get_ratings(runners)):
             R[i, :] = randn(N) * r.sigma + r.mu
@@ -141,10 +168,11 @@ class HorseModel(object):
                                'n_wins': x[1]['n_wins']}, items)
         return dicts
 
-
     def get_ratings(self, runners):
         return [self._ratings[x]['rating'][0] for x in runners]
 
+    def get_runs(self, runners):
+        return array([self._ratings[x]['n_races'] for x in runners])
 
     @staticmethod
     def from_dict(dicts):
@@ -159,9 +187,13 @@ class HorseModel(object):
 
 
 
-
-
     #ms = c.get_all_markets(hours=24, countries=['GBR'])
     #predicates = lambda x: x['menu_path'].startswith('\\Horse Racing\\GB') and\
     #                       x['market_name'].lower() == 'to be placed'
     #len(filter(predicates, ms))
+
+# p = np.r_[.1, .6, .3]
+# q = np.r_[.1, .5, .4]
+#
+# rm = RiskModel2(p, q)
+# print(rm.optimal_w())

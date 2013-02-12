@@ -1,7 +1,10 @@
 #!/usr/bin/python
 from __future__ import print_function, division
 
-import warnings; warnings.filterwarnings(action='ignore', category=FutureWarning)
+import warnings
+warnings.filterwarnings(action='ignore', category=FutureWarning)
+warnings.filterwarnings(action='ignore', category=UserWarning)
+
 import re
 import logging
 
@@ -18,16 +21,22 @@ SELECTION_BLACK_LIST = [
 ]
 
 
-def convert_types(dicts, mappers={}):
+def convert_types(dicts, mappers=None):
+    if mappers is None:
+        mappers = {}
+
     def map_it(d):
         for (m, f) in mappers.items():
             if m in d:
                 d[m] = f(d[m])
         return d
+
     return (map_it(d) for d in dicts)
 
 
-def pandas_to_dicts(df, mappers={}):
+def pandas_to_dicts(df, mappers=None):
+    if mappers is None:
+        mappers = {}
     dicts = (df.ix[i].to_dict() for i in df.index)
     if len(mappers) == 0:
         return dicts
@@ -121,7 +130,7 @@ def upload(args):
     parse = lambda x: dateutil.parser.parse(x, dayfirst=True)
 
     try:
-        dir, file_name = split(path)
+        directory, file_name = split(path)
         file_part, ext = splitext(file_name)
 
         formatter = logging.Formatter('%(asctime)s - ' + file_name +  ' - %(levelname)s: %(message)s')
@@ -130,12 +139,12 @@ def upload(args):
 
         if ext == '.zip':
             logging.info('Reading zipped csv file into memory')
-            input = zipfile.ZipFile(path, 'r').open(file_part + '.csv')
+            fin = zipfile.ZipFile(path, 'r').open(file_part + '.csv')
         else:
-            logging.info('Reading csv file into memory' % file_name)
-            input = path
+            logging.info('Reading csv file into memory')
+            fin = path
 
-        bars = pd.read_csv(input, parse_dates=['SCHEDULED_OFF'], date_parser=parse)
+        bars = pd.read_csv(fin, parse_dates=['SCHEDULED_OFF'], date_parser=parse)
         bars.columns = bars.columns.map(lambda x: x.lower())
 
         # Insert other filters here:
@@ -170,8 +179,10 @@ if __name__ == '__main__':
     parser.add_argument('--db',type=str, action='store', default='betfair', help='db (default=betfair)')
     parser.add_argument('--jobs', type=int, action='store', default=-1, help='how many jobs to use')
     parser.add_argument('--races',type=str, action='store', default='races', help='races collection (default=races)')
-    parser.add_argument('--train',type=str, action='store', default='train', help='training set collection (default=train)')
-    parser.add_argument('--vwao',type=str, action='store', default='vwao', help='volume-weighted-average-odds (vwao) collection (default=vwao)')
+    parser.add_argument('--train',type=str, action='store', default='train',
+                        help='training set collection (default=train)')
+    parser.add_argument('--vwao',type=str, action='store', default='vwao',
+                        help='volume-weighted-average-odds (vwao) collection (default=vwao)')
     parser.add_argument('--logfile', type=str, action='store', default=None, help='specifies what log file to use')
     parser.add_argument('--logtty', help='prints logging info to the terminal', action='store_true')
     args = parser.parse_args()
