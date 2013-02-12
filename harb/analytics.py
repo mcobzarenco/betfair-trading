@@ -4,10 +4,11 @@ from collections import defaultdict
 import logging
 
 import numpy as np
-from numpy import array, sqrt, empty, argsort, zeros, ones, log, isnan, diag_indices_from, eye, dot, inf
+from numpy import array, sqrt, empty, argsort, zeros, ones, log, isnan, diag_indices_from, eye, dot, inf, linspace
 from scipy import rand, randn
 from scipy.stats import norm
 from scipy.optimize import minimize
+from scipy.integrate import trapz
 
 from trueskill import TrueSkill, Rating, rate
 
@@ -23,6 +24,7 @@ def pwin_1vs1_mc(r1, r2):
     r1s = randn(N) * r1.sigma + r1.mu
     r2s = randn(N) * r2.sigma + r2.mu
     return float(sum(r1s > r2s)) / N
+
 
 def pwin_mc(rs):
     N = 10000
@@ -145,8 +147,7 @@ class HorseModel(object):
         stats['n_runners'] = len(ratings)
         return stats
 
-
-    def pwin(self, runners, nwins=1, prior_for_unobs=True):
+    def pwin_mc(self, runners, nwins=1, prior_for_unobs=True):
         assert prior_for_unobs
         N = 1000
         R = empty((len(runners), N))
@@ -158,6 +159,25 @@ class HorseModel(object):
             R[:, i] = [ar.index(x) for x in range(len(ar))]
         return np.sum(R < nwins, 1) / float(N)
 
+    def pwin_trapz(self, runners):
+        ratings = self.get_ratings(runners)
+        N = len(ratings)
+        mus = array(map(lambda x: x.mu, ratings))
+        sigmas = array(map(lambda x: x.sigma, ratings))
+
+        pwin = empty(N)
+        start, end, nsteps = min(mus) - 3*max(sigmas), max(mus) + 3*max(sigmas), 5000
+        us, p = linspace(start, end, nsteps), empty(nsteps)
+        cdfs = [norm.cdf(us, loc=mus[i], scale=sigmas[i]) for i in xrange(N)]
+        for i in xrange(N):
+            p.fill(1.0)
+            for j in xrange(N):
+                if i == j:
+                    p *= norm.pdf(us, loc=mus[j], scale=sigmas[j])
+                else:
+                    p *= cdfs[j]
+            pwin[i] = trapz(p, dx=(end - start) / float(nsteps))
+        return pwin
 
     def as_dict(self):
         items = self._ratings.items()
