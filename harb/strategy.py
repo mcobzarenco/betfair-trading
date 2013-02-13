@@ -2,6 +2,7 @@ from __future__ import print_function, division
 
 from collections import defaultdict
 import logging
+import datetime
 import time
 
 import numpy as np
@@ -78,7 +79,7 @@ class Strategy(object):
         return self._bets
 
 
-def make_scorecard(strategy, percentile_width=60, comm=DEFAULT_COMM):
+def make_scorecard(strategy, percentile_width=60, comm=DEFAULT_COMM, jsonify=True):
     def calculate_collateral(group):
         return np.min(risk.nwin1_bet_returns(group.amount.values, group.odds.values))
 
@@ -95,19 +96,24 @@ def make_scorecard(strategy, percentile_width=60, comm=DEFAULT_COMM):
 
     daily_pnl = events[['scheduled_off', 'pnl_gross', 'pnl_net']]
     daily_pnl['scheduled_off'] = daily_pnl['scheduled_off'].map(lambda t: datetime.datetime(t.year, t.month, t.day))
-    daily_pnl = daily_pnl.groupby('scheduled_off').sum().rename({'pnl_gross': 'gross', 'pnl_net': 'net'})
+    daily_pnl = daily_pnl.groupby('scheduled_off').sum().rename(columns={'pnl_gross': 'gross', 'pnl_net': 'net'})
     daily_pnl['gross_cumm'] = daily_pnl['gross'].cumsum()
-    daily_pnl['bet_cumm'] = daily_pnl['net'].cumsum()
+    daily_pnl['net_cumm'] = daily_pnl['net'].cumsum()
 
     scorecard = {
-        'all': bets[bets_summary].describe(percentile_width).to_dict(),
-        'backs': bets[bets['amount'] > 0][bets_summary].describe(percentile_width).to_dict(),
-        'lays': bets[bets['amount'] < 0][bets_summary].describe(percentile_width).to_dict(),
-        'events': events.describe(percentile_width).to_dict(),
-        'pnl': pandas_to_dicts(events[['gross', 'net']])
+        'all': bets[bets_summary].describe(percentile_width),
+        'backs': bets[bets['amount'] > 0][bets_summary].describe(percentile_width),
+        'lays': bets[bets['amount'] < 0][bets_summary].describe(percentile_width),
+        'events': events.describe(percentile_width),
+        'daily_pnl': daily_pnl
     }
 
-    return scorecard, events
+    if jsonify:
+        for col in ['all', 'backs', 'lays', 'events']:
+            scorecard[col] = scorecard[col].to_dict()
+        scorecard['daily_pnl'] = list(pandas_to_dicts(scorecard['daily_pnl'].reset_index()))
+
+    return scorecard
 
 
 class Jockey(Strategy):
@@ -131,7 +137,7 @@ class Jockey(Strategy):
 
         runners = race['selection']
         # self.total_matched(race['event_id']) > 2e5
-        if np.all(self.hm.get_runs(runners) > 2):
+        if np.all(self.hm.get_runs(runners) > 3):
             vwao = self.vwao.ix[race['event_id']]['vwao'][runners].values
             #q = 1.0 / vwao / np.sum(1.0 / vwao)
             q = 1.0 / vwao
@@ -174,12 +180,12 @@ if __name__ == '__main__':
     algo = Jockey(db)
 
     st = time.clock()
-    algo.run('GB', datetime.datetime(2012, 1, 1), datetime.datetime(2013, 1, 1))
+    algo.run('GB') # , start_date=datetime.datetime(2012, 1, 1), end_date=datetime.datetime(2013, 1, 1))
     en = time.clock()
 
     df = pd.DataFrame.from_dict(algo._bets)
     print(df.to_string())
     print('Done in %.4f s' % (en - st))
 
-    df.save('/home/marius/playground/btrading/back5.pd')
+    df.save('/home/marius/playground/btrading/back7.pd')
 
