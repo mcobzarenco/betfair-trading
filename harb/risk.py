@@ -10,6 +10,15 @@ from scipy.stats import norm
 from scipy.optimize import minimize
 
 
+def nwin1_bet_returns(w, odds):
+    assert len(w) == len(odds)
+    R = w.reshape(1, -1).repeat(len(w), 0)
+    R *= eye(R.shape[0]) - 1.0
+    ix = diag_indices_from(R)
+    R[ix] = w * (odds - 1.0)
+    return np.sum(R, 1)
+
+
 def _R_matrix(p, q):
     assert len(p) == len(q)
     R = p.reshape(1, -1).repeat(len(p), 0)
@@ -102,6 +111,13 @@ class RiskModel(object):
 
 
 # from numpy import r_
+#
+# w = r_[0.0, -2.0, 2.0]
+# odds = r_[3.9, 7.6, 7.8]
+#
+# print(nwin1_bet_returns(w, odds))
+
+
 # from analytics import RiskModel2
 #
 # p = rand(3)
