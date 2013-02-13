@@ -12,36 +12,13 @@ import dateutil
 import numpy as np
 import pandas as pd
 
-from harb.common import configure_root_logger, TO_BE_PLACED
+from harb.common import configure_root_logger, TO_BE_PLACED, convert_types, pandas_to_dicts
 
 
 SELECTION_BLACK_LIST = [
     'lengths inclusive',
     'any other individual jockey'
 ]
-
-
-def convert_types(dicts, mappers=None):
-    if mappers is None:
-        mappers = {}
-
-    def map_it(d):
-        for (m, f) in mappers.items():
-            if m in d:
-                d[m] = f(d[m])
-        return d
-
-    return (map_it(d) for d in dicts)
-
-
-def pandas_to_dicts(df, mappers=None):
-    if mappers is None:
-        mappers = {}
-    dicts = (df.ix[i].to_dict() for i in df.index)
-    if len(mappers) == 0:
-        return dicts
-    else:
-        return convert_types(dicts, mappers)
 
 
 def extract_name(s):
@@ -171,17 +148,16 @@ if __name__ == '__main__':
     from multiprocessing import Pool, cpu_count
     from pymongo import MongoClient
 
-
     parser = argparse.ArgumentParser(description='Uploads Betfair historical data to a MongoDB database')
     parser.add_argument('files', metavar='FILES', type=str, nargs='+', help='zip/csv/pd files to upload')
     parser.add_argument('--host', type=str, action='store', default='localhost', help='MongoDB host (default=localhost)')
     parser.add_argument('--port', type=int, action='store', default=33000, help='MongoDB port (default=33000)')
-    parser.add_argument('--db',type=str, action='store', default='betfair', help='db (default=betfair)')
+    parser.add_argument('--db', type=str, action='store', default='betfair', help='db (default=betfair)')
     parser.add_argument('--jobs', type=int, action='store', default=-1, help='how many jobs to use')
-    parser.add_argument('--races',type=str, action='store', default='races', help='races collection (default=races)')
-    parser.add_argument('--train',type=str, action='store', default='train',
+    parser.add_argument('--races', type=str, action='store', default='races', help='races collection (default=races)')
+    parser.add_argument('--train', type=str, action='store', default='train',
                         help='training set collection (default=train)')
-    parser.add_argument('--vwao',type=str, action='store', default='vwao',
+    parser.add_argument('--vwao', type=str, action='store', default='vwao',
                         help='volume-weighted-average-odds (vwao) collection (default=vwao)')
     parser.add_argument('--logfile', type=str, action='store', default=None, help='specifies what log file to use')
     parser.add_argument('--logtty', help='prints logging info to the terminal', action='store_true')
@@ -192,4 +168,4 @@ if __name__ == '__main__':
 
     logging.info('Creating a pool with %d worker processes..' % cpus)
     pool = Pool(processes=cpus)
-    pool.map(upload, zip([args]*len(args.files), args.files))
+    pool.map(upload, zip([args] * len(args.files), args.files))
