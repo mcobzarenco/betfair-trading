@@ -10,25 +10,29 @@ from scipy.stats import norm
 from scipy.optimize import minimize
 
 
+def _R_matrix(p, q):
+    assert len(p) == len(q)
+    R = p.reshape(1, -1).repeat(len(p), 0)
+    R *= eye(R.shape[0]) - 1.0
+    ix = diag_indices_from(R)
+    R[ix] = p * (1.0 / q - 1.0)
+    return R
+
+
 def nwin1_l2reg(p, q, ra):
     """
-    Maximise expected reutrns w.r.t. p using market implied probabilites q.
-    The risk aversion ra controls the amount of L2 reguralization:
+    Maximise expected reutrns w.r.t. p using market implied probabilites q to compute the bet odds.
+    The risk aversion ra controls the amount of L2 regularization:
 
-        argmax_w (<R>_p - ra * dot(w , w))
+        argmax_w (<R(X | w, q)>_p - ra * dot(w , w))
 
     :param p: model probabilties
     :param q: market implied probabilities
     :param ra: risk aversion
     """
-    assert len(p) == len(q)
     assert ra > 0
 
-    R = p.reshape(1, -1).repeat(len(p), 0)
-    R *= eye(R.shape[0]) - 1.0
-    ix = diag_indices_from(R)
-    R[ix] = p * (1.0 / q - 1.0)
-
+    R = _R_matrix(p, q)
     r = np.sum(R, 1)
     w = r / 2 / ra
 
@@ -40,6 +44,61 @@ def nwin1_l2reg(p, q, ra):
     #payoffs = np.sum(R, 1)
     #utility = np.sum(log((self.wealth + payoffs) / self.wealth) * self.p)
     #np.sum(payoffs * self.p) - 0.2 * dot(w, w)
+
+
+def nwin1_log_util(p, q, wealth):
+    #TODO: convert the class to a function and tidy up
+    assert wealth > 0
+    R = _R_matrix(p, q)
+
+    class RiskModel2(object):
+        def __init__(self, p, q, wealth=100):
+            self.N = len(p)
+            self.p = p
+            self.q = q
+            self.wealth = wealth
+
+    def exp_utility(self, w, q=None):
+        if q is None:
+            q = self.q
+
+        R = w.reshape(1, -1).repeat(self.N, 0)
+        R *= eye(R.shape[0]) - 1.0
+        ix = diag_indices_from(R)
+        R[ix] = w * (1.0 / q - 1.0)
+
+        payoffs = np.sum(R, 1)
+        #utility = np.sum(log((self.wealth + payoffs) / self.wealth) * self.p)
+        #return utility if not isnan(utility) else -inf
+        return np.sum(payoffs * self.p) - 0.2 * dot(w, w)
+
+    def optimal_w(self):
+        constraints = [{'type': 'eq',
+                        'fun': lambda w: sum(w * w) - 1}]
+        min = minimize(lambda w: -self.exp_utility(w), zeros(self.N), method='BFGS', options={'disp': True})
+        return min['x']
+
+
+class RiskModel(object):
+    def __init__(self, alpha, covariance, risk_aversion):
+        assert covariance.shape == (len(alpha), len(alpha))
+        self.N = len(alpha)
+        self.a = alpha
+        self.C = covariance
+        self.ra = risk_aversion
+
+
+    def adj_return(self, w):
+        return dot(self.a, w) - self.ra * dot(dot(w, self.C), w)
+
+
+    def optimal_w(self):
+        constraints = [{'type': 'eq',
+                        'fun': lambda w: sum(w) - 1,
+                        'jac': lambda w: np.ones_like(w)}]
+        min = minimize(lambda w: -self.adj_return(w), ones(self.N) / self.N, method='SLSQP', constraints=constraints)
+        return min['x']
+
 
 
 # from numpy import r_
