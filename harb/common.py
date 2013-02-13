@@ -14,7 +14,7 @@ def configure_root_logger(to_stdout=True, file_out=None, level=logging.DEBUG, fo
     if formatter is None:
         formatter = logging.Formatter('%(asctime)s - %(levelname)s: %(message)s')
     if file_out is not None:
-        file_log = logging.FileHandler(file_out, mode = 'a')
+        file_log = logging.FileHandler(file_out, mode='a')
         file_log.setLevel(level)
         file_log.setFormatter(formatter)
         logger.addHandler(file_log)
