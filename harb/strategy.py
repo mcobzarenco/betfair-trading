@@ -137,7 +137,7 @@ class Jockey(Strategy):
 
         runners = race['selection']
         # self.total_matched(race['event_id']) > 2e5
-        if np.all(self.hm.get_runs(runners) > 3):
+        if np.all(self.hm.get_runs(runners) > 1):
             vwao = self.vwao.ix[race['event_id']]['vwao'][runners].values
             #q = 1.0 / vwao / np.sum(1.0 / vwao)
             q = 1.0 / vwao
@@ -177,7 +177,7 @@ if __name__ == '__main__':
     configure_root_logger(True)
 
     db = MongoClient(port=30001)['betfair']
-    algo = Jockey(db)
+    algo = Jockey(db, train='train_hrb')
 
     st = time.clock()
     algo.run('GB') # , start_date=datetime.datetime(2012, 1, 1), end_date=datetime.datetime(2013, 1, 1))
