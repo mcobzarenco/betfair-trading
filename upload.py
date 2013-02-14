@@ -164,7 +164,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     configure_root_logger(args.logtty, args.logfile)
-    cpus = cpu_count() if args.jobs < 0 else args.jobs
+    cpus = max(cpu_count(), len(args.files)) if args.jobs < 0 else args.jobs
 
     logging.info('Creating a pool with %d worker processes..' % cpus)
     pool = Pool(processes=cpus)
