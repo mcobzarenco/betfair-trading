@@ -19,16 +19,16 @@ def nwin1_bet_returns(w, odds):
     return np.sum(R, 1)
 
 
-def _R_matrix(p, q):
-    assert len(p) == len(q)
+def _R_matrix(p, odds):
+    assert len(p) == len(odds)
     R = p.reshape(1, -1).repeat(len(p), 0)
     R *= eye(R.shape[0]) - 1.0
     ix = diag_indices_from(R)
-    R[ix] = p * (1.0 / q - 1.0)
+    R[ix] = p * (odds - 1.0)
     return R
 
 
-def nwin1_l2reg(p, q, ra):
+def nwin1_l2reg(p, odds, ra):
     """
     Maximise expected reutrns w.r.t. p using market implied probabilites q to compute the bet odds.
     The risk aversion ra controls the amount of L2 regularization:
@@ -41,7 +41,7 @@ def nwin1_l2reg(p, q, ra):
     """
     assert ra > 0
 
-    R = _R_matrix(p, q)
+    R = _R_matrix(p, odds)
     r = np.sum(R, 1)
     w = r / 2 / ra
 
