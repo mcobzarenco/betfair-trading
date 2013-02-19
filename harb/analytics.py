@@ -12,8 +12,16 @@ from scipy.integrate import trapz
 from trueskill import TrueSkill, Rating, rate
 
 
+DEFAULT_MU = 0.0
+DEFAULT_SIGMA = 8.0
+DEFAULT_BETA = 4.0
+DEFAULT_TAU = 0.1
+DEFAULT_DRAW = 0.1
+
+
 class HorseModel(object):
-    def __init__(self, mu=25.0, sigma=8.333, beta=4.166, tau=0.0833, draw_probability=0.1):
+    def __init__(self, mu=DEFAULT_MU, sigma=DEFAULT_SIGMA, beta=DEFAULT_BETA,
+                 tau=DEFAULT_TAU, draw_probability=DEFAULT_DRAW):
         """ mu - the initial mean of ratings
             sigma - the initial standard deviation of ratings
             beta - the distance that guarantees about an 80% chance of winning
@@ -26,6 +34,13 @@ class HorseModel(object):
         return defaultdict(lambda: {'rating': (self._ts.create_rating(),),
                                     'n_races': 0,
                                     'n_wins': 0})
+
+    def get_params(self):
+        return {'mu': self._ts.mu,
+                'sigma': self._ts.sigma,
+                'beta': self._ts.beta,
+                'tau': self._ts.tau,
+                'draw_probability': self._ts.draw_probability}
 
     def fit_race(self, race):
         runners = race['selection']

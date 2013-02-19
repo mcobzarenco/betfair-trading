@@ -135,3 +135,14 @@ class RiskModel(object):
 # st = time.clock()
 # print(rm.optimal_w())
 # print('opt took %.2f milisec' % ((time.clock() - st) * 1000.0))
+
+# odds = np.array([9.63506448,  2.53987236,  7.40156126])
+# p = np.array([0.14765513,  0.5729512,  0.23492542])
+#
+# implied = (1.0 / odds) / np.sum(1.0 / odds)
+# w = nwin1_l2reg(implied, 1.1 * 1 / implied, 0.1)
+# print(implied)
+# print(w)
+# print(np.sum(nwin1_bet_returns(w, 0.9 * 1 / implied) * implied))
+
+#print(nwin1_l2reg(p, .5 * odds, 0.1))

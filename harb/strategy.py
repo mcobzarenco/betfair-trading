@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from common import TO_BE_PLACED, pandas_to_dicts
-from analytics import HorseModel
+from analytics import HorseModel, DEFAULT_MU, DEFAULT_SIGMA, DEFAULT_BETA, DEFAULT_TAU, DEFAULT_DRAW
 import risk
 
 WARN_LIQUIDITY = 0.2
@@ -53,7 +53,7 @@ class Strategy(object):
         if end_date is not None:
             where_clause['scheduled_off']['$lte'] = end_date
 
-        self.vwao = pd.DataFrame(list(db[self.vwao_coll].find(where_clause, sort=[('scheduled_off', 1)])))
+        self.vwao = pd.DataFrame(list(self.db[self.vwao_coll].find(where_clause, sort=[('scheduled_off', 1)])))
         self._total_matched = self.vwao.groupby('event_id')['volume_matched'].sum()
         self.vwao = self.vwao.set_index(['event_id', 'selection'])
 
@@ -84,10 +84,6 @@ class Strategy(object):
         return self._bets
 
     @staticmethod
-    def _log_likelihood(won, prob):
-        return np.log(won * prob + (1 - won) * (1.0 - prob))
-
-    @staticmethod
     def _jsonify_scorecard(scorecard):
         for col in ['all', 'backs', 'lays', 'events']:
             scorecard[col] = scorecard[col].to_dict()
@@ -99,11 +95,14 @@ class Strategy(object):
 
         bets_summary = ['amount', 'pnl', 'odds']
         bets = pd.DataFrame.from_dict(self.get_bets())
+
         user_columns = bets.filter(regex='u_.*').columns.tolist()
         llik = bets.groupby(['event_id', 'selection'])[['selection_won'] + user_columns].last() \
             .join(self.vwao[['implied', 'uniform']])
-        llik['llik_implied'] = Strategy._log_likelihood(llik['selection_won'], llik['implied'])
-        llik['llik_uniform'] = Strategy._log_likelihood(llik['selection_won'], llik['uniform'])
+        llik['llik_implied'] = np.log(llik['implied'][llik['selection_won'] == 1])
+        llik['llik_implied'].fillna(0.0, inplace=True)
+        llik['llik_uniform'] = np.log(llik['uniform'][llik['selection_won'] == 1])
+        llik['llik_uniform'].fillna(0.0, inplace=True)
 
         events = pd.DataFrame.from_dict([{'event_id': k,
                                           'pnl_gross': v.pnl.sum(),
@@ -141,18 +140,30 @@ class Strategy(object):
 
 
 class Balius(Strategy):
-    def __init__(self, db, vwao='vwao', train='train'):
+    def __init__(self, db, vwao='vwao', train='train',
+                 mu=DEFAULT_MU, sigma=DEFAULT_SIGMA, beta=DEFAULT_BETA, tau=DEFAULT_TAU, draw_probability=DEFAULT_DRAW,
+                 risk_aversion=0.1, min_races=3, max_exposure=50):
         super(Balius, self).__init__(db, vwao, train)
-        self.hm = HorseModel(tau=1, beta=20, draw_probability=0.001)
+        self.hm = HorseModel(mu=mu, sigma=sigma, beta=beta, tau=tau, draw_probability=draw_probability)
+        self.risk_aversion = risk_aversion
+        self.min_races = min_races
+        self.max_expsoure = max_exposure
 
     def make_scorecard(self, percentile_width=60, comm=DEFAULT_COMM, jsonify=True, llik_frame=False):
         scorecard = super(Balius, self).make_scorecard(percentile_width, comm, jsonify, True)
         llik = scorecard['_frames']['llik']
 
-        llik['llik_model'] = Strategy._log_likelihood(llik['selection_won'], llik['u_p'])
+        llik['llik_model'] = np.log(llik['u_p'][llik['selection_won'] == 1])
+        llik['llik_model'].fillna(0.0, inplace=True)
         scorecard['llik']['model'] = llik['llik_model'].sum()
-
-        print(llik)
+        scorecard['params'] = {
+            'ts': self.hm.get_params(),
+            'risk': {
+                'risk_aversion': self.risk_aversion,
+                'min_races': self.min_races,
+                'max_exposure': self.max_expsoure
+            }
+        }
 
         if not llik_frame:
             del scorecard['_frames']
@@ -164,7 +175,7 @@ class Balius(Strategy):
 
         runners = race['selection']
         # self.total_matched(race['event_id']) > 2e5
-        if np.all(self.hm.get_runs(runners) > 0):
+        if np.all(self.hm.get_runs(runners) >= self.min_races):
             vwao = self.vwao.ix[race['event_id']]['vwao'][runners].values
             implied = self.vwao.ix[race['event_id']]['implied'][runners].values
             p = self.hm.pwin_trapz(runners)
@@ -172,52 +183,26 @@ class Balius(Strategy):
             rel = p / implied - 1.0
             t = 0.1
 
-            #p[rel < -t] = implied[rel < -t] * 0.9
-            #p[rel > t] = implied[rel > t] * 1.1
+            p[rel < -t] = implied[rel < -t] * 0.9
+            p[rel > t] = implied[rel > t] * 1.1
 
             #print(p)
             # ps = (self.hm.get_runs(runners) * p + 4 * q) / (4 + self.hm.get_runs(runners))
 
             #w = RiskModel2(p, q).optimal_w()
-            w = risk.nwin1_l2reg(p, vwao, 0.1)
+            w = risk.nwin1_l2reg(p, vwao, self.risk_aversion)
 
             returns = risk.nwin1_bet_returns(w, vwao)
-            ix = np.where(returns < -50)[0]
-            if False and len(ix) > 0:
-                for i in ix:
-                    logging.info('Zeroing bet of %.2f on "%s" with potential returns = %.2f' %
-                                 (w[i], runners[i], returns[i]))
-                    w[i] = 0.0
-
-            logging.info('Placing some bets: %.2f' % np.sum(np.abs(w)))
-            [self.bet(race['event_id'], r, w[i], {'p': p[i]}) for i, r in enumerate(runners) if np.abs(w[i]) > 0.01]
+            #ix = np.where(returns < -self.max_expsoure)[0]
+            if np.any(returns <= -self.max_expsoure):
+                logging.warning('Maximum exposure limit of %.2f reached!' % self.max_expsoure)
+                logging.warning('Ignoring bets w=%s runners=%s with potential returns=%s'
+                                % (w.tolist(), runners, returns.tolist()))
+            else:
+                logging.info('Betting on event_id=%d: |exposure|=%.2f collateral=%.2f' %
+                             (race['event_id'], np.sum(np.abs(w)), np.min(returns)))
+                for i, r in enumerate(runners):
+                    if np.abs(w[i]) > 0.01:
+                        self.bet(race['event_id'], r, w[i], {'p': p[i], 'odds': 1.0 / p[i]})
 
         self.hm.fit_race(race)
-
-#        logging.info('To be placed event (event_id = %d)' % race['event_id'])
-#        vwao = self.vwao.ix[race['event_id']]['vwao']
-#        self.bet(race['event_id'], vwao[vwao == vwao.min()].index[0], 2.0)
-
-
-if __name__ == '__main__':
-    import datetime
-    from pymongo import MongoClient
-    from common import configure_root_logger
-
-    configure_root_logger(True)
-
-    db = MongoClient(port=30001)['betfair']
-    algo = Balius(db, train='train_hrb')
-
-    st = time.clock()
-    algo.run('GB' , start_date=datetime.datetime(2012, 1, 1), end_date=datetime.datetime(2012, 2, 1))
-    en = time.clock()
-
-    db['scorecards'].insert(algo.make_scorecard())
-
-    df = pd.DataFrame.from_dict(algo._bets)
-    # print(df.to_string())
-    print('Done in %.4f s' % (en - st))
-
-    df.save('/home/marius/playground/btrading/back7.pd')
-
