@@ -63,7 +63,7 @@ class Strategy(object):
 
         if country is not None:
             where_clause['country'] = country
-        races = self.db[self.train_coll].find(where_clause, sort=[('scheduled_off', 1)])
+        races = self.db[self.train_coll].find(where_clause, sort=[('scheduled_off', 1)], timeout=False)
         logging.info('Running strategy on %d historical races [coll=%s, start_date=%s, end_date=%s].' %
                      (races.count(), self.db[self.train_coll], start_date, end_date))
 

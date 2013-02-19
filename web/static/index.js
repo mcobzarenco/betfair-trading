@@ -61,8 +61,12 @@ $(function() {
                 'mData': 'tau'
             },
             {
-                'sTitle': 'mean_pnl',
-                'mData': 'mean_pnl'
+                'sTitle': 'Mean PnL',
+                'mData': function(source) {return source['mean_pnl'].toFixed(2);}
+            },
+            {
+                'sTitle': 'log(model/implied)',
+                'mData': function(source) {return source['diff_lik'].toFixed(2);}
             }
         ]
     });

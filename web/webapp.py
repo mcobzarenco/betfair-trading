@@ -9,8 +9,8 @@ import pandas as pd
 from bottle import route, run, template, debug, static_file
 
 
-SCORECARD_TABLE_FIELDS = {'timestamp': 1, '_id': 1, 'params': 1, 'events': 1}
-SCORECARD_TABLE_ORDER = ['timestamp', '_id', 'mu', 'sigma', 'beta', 'tau', 'mean_pnl']
+SCORECARD_TABLE_FIELDS = {'timestamp': 1, '_id': 1, 'params': 1, 'events': 1, 'llik': 1}
+SCORECARD_TABLE_ORDER = ['timestamp', '_id', 'mu', 'sigma', 'beta', 'tau', 'mean_pnl', 'diff_lik']
 
 db = MongoClient(port=30001)['betfair']
 
@@ -47,7 +47,8 @@ def scorecards():
                             'sigma': s['params']['ts']['sigma'],
                             'beta': s['params']['ts']['beta'],
                             'tau': s['params']['ts']['tau'],
-                            'mean_pnl': s['events']['pnl_net']['mean']}, scards)
+                            'mean_pnl': s['events']['pnl_net']['mean'],
+                            'diff_lik': s['llik']['model'] - s['llik']['implied']}, scards)
     return json.dumps(scards)
 
 
