@@ -9,15 +9,13 @@ import pandas as pd
 from bottle import route, run, template, debug, static_file
 
 
-SCORECARD_TABLE_FIELDS = {'timestamp': 1, '_id': 1, 'params': 1}
-SCORECARD_TABLE_ORDER = ['timestamp', '_id', 'mu', 'sigma', 'beta', 'tau']
+SCORECARD_TABLE_FIELDS = {'timestamp': 1, '_id': 1, 'params': 1, 'events': 1}
+SCORECARD_TABLE_ORDER = ['timestamp', '_id', 'mu', 'sigma', 'beta', 'tau', 'mean_pnl']
 
-db = MongoClient(port=33000)['betfair']
+db = MongoClient(port=30001)['betfair']
 
 
 def to_json(x):
-    """ Converts numpy types, dates, pandas' frames and series to native types/strings for JSON conversion.
-        Usage example: json.dumps(d, default=to_json)"""
     if isinstance(x, datetime.date) or isinstance(x, datetime.datetime):
         return x.isoformat()
     else:
@@ -28,28 +26,35 @@ def to_json(x):
             return dict((k, v) for k, v in x.__dict__.iteritems() if not k.startswith("_"))
 
 
+
 @route('/')
 @route('/static/<filename:path>')
 def server_static(filename="index.html"):
     return static_file(filename, root='static/')
 
 
+@route('/detail/<scorecard_id>')
+def detail(scorecard_id):
+    return template('templates/detail', json_scorecard=json.dumps(scorecard(scorecard_id), default=to_json))
+
+
 @route('/scorecards')
-def get_scorecard_table():
-    scorecards = list(db['scorecards'].find(fields=SCORECARD_TABLE_FIELDS))
-    scorecards = map(lambda s: {'timestamp': s['timestamp'],
-                                '_id': s['_id'],
-                                'mu': s['params']['ts']['mu'],
-                                'sigma': s['params']['ts']['sigma'],
-                                'beta': s['params']['ts']['beta'],
-                                'tau': s['params']['ts']['tau']}, scorecards)
-    return pd.DataFrame.from_dict(scorecards)[SCORECARD_TABLE_ORDER].to_html()
+def scorecards():
+    scards = list(db['scorecards'].find(fields=SCORECARD_TABLE_FIELDS))
+    scards = map(lambda s: {'timestamp': s['timestamp'].isoformat(),
+                            '_id': str(s['_id']),
+                            'mu': s['params']['ts']['mu'],
+                            'sigma': s['params']['ts']['sigma'],
+                            'beta': s['params']['ts']['beta'],
+                            'tau': s['params']['ts']['tau'],
+                            'mean_pnl': s['events']['pnl_net']['mean']}, scards)
+    return json.dumps(scards)
 
 
 @route('/scorecard/<scorecard_id>')
-def get_scorecard(scorecard_id):
+def scorecard(scorecard_id):
     scorecard = db['scorecards'].find_one({'_id': ObjectId(scorecard_id)})
-    del scorecard['_id']
+    scorecard['_id'] = str(scorecard['_id'])
     return json.dumps(scorecard, default=to_json)
 
 

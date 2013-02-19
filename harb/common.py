@@ -1,6 +1,8 @@
 from __future__ import print_function, division
 
 import logging
+import datetime
+
 import pymongo
 
 TO_BE_PLACED = 'TO BE PLACED'
@@ -52,3 +54,14 @@ def pandas_to_dicts(df, mappers=None):
         return dicts
     else:
         return convert_types(dicts, mappers)
+
+
+def to_json(x):
+    if isinstance(x, datetime.date) or isinstance(x, datetime.datetime):
+        return x.isoformat()
+    else:
+        repr_json = getattr(x, "__repr_json__", None)
+        if repr_json:
+            return repr_json()
+        else:
+            return dict((k, v) for k, v in x.__dict__.iteritems() if not k.startswith("_"))
