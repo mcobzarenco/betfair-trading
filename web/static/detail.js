@@ -34,7 +34,11 @@ function describe_table(objs, title, fmt_value) {
     var $body = $('<tbody></tbody>');
 
     $head.append($('<tr></tr>').append($('<th></th>').attr('colspan', cols.length + 1).html(title)));
-    $head.append($('<tr></tr>').append($('<th></th>')).append(cols.map(function(x) {return $('<th></th>').html(x);})));
+    $head.append($('<tr></tr>').append($('<th></th>')).append(cols.map(
+        function(x) {
+            return $('<th></th>').addClass('series_subheader').html(x);
+        }
+    )));
 
     for(var k in keys) {
         var $tr = $('<tr></tr>');
@@ -51,28 +55,38 @@ function toFixed2(x) {
 }
 
 $(function() {
-   $('.scorecard_id').html(scorecard['_id']);
+    $('.scorecard_id').html(scorecard['_id']);
 
-   var events_series = describe_table(scorecard['events'], 'Events', toFixed2);
-   var all_series = describe_table(scorecard['all'], 'All', toFixed2);
-   var backs_series = describe_table(scorecard['backs'], 'Backs', toFixed2);
-   var lays_series = describe_table(scorecard['lays'], 'Lays', toFixed2);
-   var llik_series = describe_series(scorecard['llik'], 'Likelihood', toFixed2);
+    $('#timestamp').html(scorecard['timestamp']);
+    $('#time_taken').html(scorecard['run_seconds'].toFixed(0));
 
-   $('#events_series').html(events_series);
-   $('#all_series').append(all_series);
-   $('#backs_series').append(backs_series);
-   $('#lays_series').append(lays_series);
-   $('#llik_series').append(llik_series);
-   $('.series').addClass('table table-condensed');
+    var llik_series = describe_series(scorecard['llik'], 'Likelihood', toFixed2);
+    var params_ts_series = describe_series(scorecard['params']['ts'], 'Trueskill', toFixed2);
+    var params_risk__series = describe_series(scorecard['params']['risk'], 'Risk', toFixed2);
+
+    var events_series = describe_table(scorecard['events'], 'Events', toFixed2);
+    var all_series = describe_table(scorecard['all'], 'All', toFixed2);
+    var backs_series = describe_table(scorecard['backs'], 'Backs', toFixed2);
+    var lays_series = describe_table(scorecard['lays'], 'Lays', toFixed2);
+
+    $('#llik_series').append(llik_series);
+    $('#params_ts').append(params_ts_series);
+    $('#params_risk').append(params_risk__series);
+    $('#events_series').append(events_series);
+    $('#all_series').append(all_series);
+    $('#backs_series').append(backs_series);
+    $('#lays_series').append(lays_series);
+
+    $('.series').addClass('table table-condensed');
 
 
-   var dates = scorecard['daily_pnl'].map(function(x){ return Date.parse(x['scheduled_off']);});
-   chart = new Highcharts.Chart({
+    var dates = scorecard['daily_pnl'].map(function(x){ return Date.parse(x['scheduled_off']);});
+    new Highcharts.StockChart({
         chart: {
             renderTo: 'daily_pnl',
-            type: 'line',
-            height: 400
+            //type: 'column',
+            zoomType: 'x',
+            height: 440
         },
         credits:{
             enabled:false
@@ -81,12 +95,12 @@ $(function() {
             text: 'Daily PnL',
             x: -20 //center
         },
-       xAxis:{
-           type:'datetime',
-           labels:{
-               align:'left'
-           }
-       },
+        xAxis:{
+            type:'datetime',
+            labels:{
+                align:'left'
+            }
+        },
         yAxis: {
             title: {
                 text: 'Cummulative PnL (GBP)'
@@ -102,28 +116,34 @@ $(function() {
         tooltip: {
             valueDecimals:2
         },
-       plotOptions:{
-           line:{
-               marker:{
-                   enabled:false
-               }
-           }
-       },
-//        legend: {
-//            layout: 'vertical',
-//            align: 'right',
-//            verticalAlign: 'top',
-//            x: -10,
-//            y: 100,
-//            borderWidth: 0
-//        },
+        plotOptions:{
+            line: {
+                marker:{
+                    enabled:false
+                }
+            },
+            column: {
+                borderWidth: 0.1,
+                groupPadding: 0,
+                pointPadding: 0,
+                shadow: false
+            }
+        },
         series: [
             {
-                name: 'Gross PnL.',
+                type: 'column',
+                name: 'Daily Net',
+                color: 'grey',
+                data: zip(dates, scorecard['daily_pnl'].map(function(x) {return x['net']}))
+            },
+            {
+                type: 'line',
+                name: 'Cumm. Gross.',
                 data: zip(dates, scorecard['daily_pnl'].map(function(x) {return x['gross_cumm']}))
             },
             {
-                name: 'Net PnL.',
+                type: 'line',
+                name: 'Cumm. Net',
                 data: zip(dates, scorecard['daily_pnl'].map(function(x) {return x['net_cumm']}))
             }
         ]
