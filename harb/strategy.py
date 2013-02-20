@@ -14,6 +14,7 @@ import risk
 
 WARN_LIQUIDITY = 0.2
 DEFAULT_COMM = 0.95
+LOGGING_NRACES = 500
 
 
 class Strategy(object):
@@ -71,10 +72,10 @@ class Strategy(object):
         for i, race in enumerate(races):
             self._curr = race
             self.handle_race(race)
-            if i > 0 and i % 100 == 0:
+            if i > 0 and i % LOGGING_NRACES == 0:
                 pnl = sum(map(lambda x: x['pnl'] if np.isfinite(x['pnl']) else 0.0, self._bets))
-                logging.info('%s races backtested so far [last 100 took %.2fs; n_bets = %d; pnl = %.2f]'
-                             % (i, time.clock() - start_time, len(self._bets), pnl))
+                logging.info('%s races backtested so far [last %d took %.2fs; n_bets = %d; pnl = %.2f]'
+                             % (i, LOGGING_NRACES, time.clock() - start_time, len(self._bets), pnl))
                 start_time = time.clock()
 
     def get_total_matched(self, event_id):
@@ -144,6 +145,8 @@ class Balius(Strategy):
                  mu=DEFAULT_MU, sigma=DEFAULT_SIGMA, beta=DEFAULT_BETA, tau=DEFAULT_TAU, draw_probability=DEFAULT_DRAW,
                  risk_aversion=0.1, min_races=3, max_exposure=50):
         super(Balius, self).__init__(db, vwao, train)
+        logging.info('Balius params: mu=%.2f sigma=%.2f tau=%.2f draw_prob=%.2f risk_aversion=%.2f min_races=%d '
+                     'max_exposure=%.2f' % (mu, sigma, tau, draw_probability, risk_aversion, min_races, max_exposure))
         self.hm = HorseModel(mu=mu, sigma=sigma, beta=beta, tau=tau, draw_probability=draw_probability)
         self.risk_aversion = risk_aversion
         self.min_races = min_races
@@ -183,8 +186,8 @@ class Balius(Strategy):
             rel = p / implied - 1.0
             t = 0.1
 
-            p[rel < -t] = implied[rel < -t] * 0.9
-            p[rel > t] = implied[rel > t] * 1.1
+            p[rel < -t] = implied[rel < -t] * 0.95
+            p[rel > t] = implied[rel > t] * 1.05
 
             #print(p)
             # ps = (self.hm.get_runs(runners) * p + 4 * q) / (4 + self.hm.get_runs(runners))
