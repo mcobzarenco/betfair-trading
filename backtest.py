@@ -89,9 +89,9 @@ if __name__ == '__main__':
                         help='draw probability (default=%.2f)' % DEFAULT_DRAW)
     parser.add_argument('--risk-aversion', type=arg_linspace, action='store', default=[0.1], metavar='RA',
                         help='risk aversion')
-    parser.add_argument('--min-races', type=int, action='store', default=[3], metavar='N',
+    parser.add_argument('--min-races', type=arg_linspace, action='store', default=[3], metavar='N',
                         help='minimum no. of races required per horse before betting')
-    parser.add_argument('--max-exposure', type=float, action='store', default=[50], metavar='EXP',
+    parser.add_argument('--max-exposure', type=arg_linspace, action='store', default=[50], metavar='EXP',
                         help='maximum exposure')
     parser.add_argument('--logfile', type=str, action='store', default=None, help='specifies what log file to use')
     parser.add_argument('--logtty', help='prints logging info to the terminal', action='store_true')
