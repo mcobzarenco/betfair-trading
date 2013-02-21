@@ -1,9 +1,10 @@
 from __future__ import print_function, division
 
-from collections import defaultdict
 import logging
 import datetime
 import time
+from collections import defaultdict
+from itertools import chain, imap, product
 
 import numpy as np
 import pandas as pd
@@ -22,6 +23,7 @@ class Strategy(object):
         self.vwao_coll = vwao
         self.train_coll = train
         self.db = db
+        self._vwao = defaultdict(lambda: {})
         self._bets = []
 
     def bet(self, event_id, selection, amount, user_fields=None):
@@ -29,7 +31,7 @@ class Strategy(object):
         if user_fields is None:
             user_fields = {}
 
-        odds = self.vwao.get_value((event_id, selection), 'vwao')
+        odds = self.get_vwao(event_id, selection)['vwao']
         win = int(selection in self._curr['winners'])
         pnl = win * amount * (odds - 1) - (1 - win) * amount
 
@@ -44,8 +46,36 @@ class Strategy(object):
         bet.update(map(lambda x: ('u_' + x[0], x[1]), user_fields.items()))
         self._bets.append(bet)
 
-    def handle_race(self, race):
-        raise RuntimeError('Abstract base class: implement the function')
+    def get_vwao(self, event_id, selection=None):
+        if event_id not in self._vwao:
+            vwao = self._vwao[event_id]
+            cursor = self.db[self.vwao_coll].find({'event_id': event_id})
+            n_runners = cursor.count()
+            implied_sum = 0.0
+            for sel in cursor:
+                sel['uniform'] = 1.0 / n_runners
+                sel['implied'] = 1.0 / sel['vwao']
+                implied_sum += sel['implied']
+                vwao[sel['selection']] = sel
+            for sel in vwao.values():
+                sel['implied'] /= implied_sum
+        else:
+            vwao = self._vwao[event_id]
+
+        if selection is None:
+            return vwao
+        else:
+            return vwao[selection]
+
+    def _vwao_as_dataframe(self):
+        index = list(chain(*imap(lambda x: product([x[0]], x[1].keys()), self._vwao.iteritems())))
+        values = list(chain(*imap(lambda x: x[1].values(), self._vwao.iteritems())))
+        vwao = pd.DataFrame.from_dict(values)
+        vwao.index = pd.MultiIndex.from_tuples(index)
+        return vwao
+
+    def get_bets(self):
+        return self._bets
 
     def run(self, country=None, start_date=None, end_date=None):
         where_clause = defaultdict(lambda: {})
@@ -53,15 +83,6 @@ class Strategy(object):
             where_clause['scheduled_off']['$gte'] = start_date
         if end_date is not None:
             where_clause['scheduled_off']['$lte'] = end_date
-
-        self.vwao = pd.DataFrame(list(self.db[self.vwao_coll].find(where_clause, sort=[('scheduled_off', 1)])))
-        self._total_matched = self.vwao.groupby('event_id')['volume_matched'].sum()
-        self.vwao = self.vwao.set_index(['event_id', 'selection'])
-
-        # Calculate the probabilities implied by the odds and a uniform distribution
-        self.vwao['implied'] = self.vwao.groupby(level=0)['vwao'].transform(lambda x: (1.0 / x) / (1.0 / x).sum())
-        self.vwao['uniform'] = self.vwao.groupby(level=0)['vwao'].transform(lambda x: 1.0 / len(x))
-
         if country is not None:
             where_clause['country'] = country
         races = self.db[self.train_coll].find(where_clause, sort=[('scheduled_off', 1)], timeout=False)
@@ -78,12 +99,6 @@ class Strategy(object):
                              % (i, LOGGING_NRACES, time.clock() - start_time, len(self._bets), pnl))
                 start_time = time.clock()
 
-    def get_total_matched(self, event_id):
-        return self._total_matched.get_value(event_id)
-
-    def get_bets(self):
-        return self._bets
-
     @staticmethod
     def _jsonify_scorecard(scorecard):
         for col in ['all', 'backs', 'lays', 'events']:
@@ -99,7 +114,7 @@ class Strategy(object):
 
         user_columns = bets.filter(regex='u_.*').columns.tolist()
         llik = bets.groupby(['event_id', 'selection'])[['selection_won'] + user_columns].last() \
-            .join(self.vwao[['implied', 'uniform']])
+            .join(self._vwao_as_dataframe()[['implied', 'uniform']])
         llik['llik_implied'] = np.log(llik['implied'][llik['selection_won'] == 1])
         llik['llik_implied'].fillna(0.0, inplace=True)
         llik['llik_uniform'] = np.log(llik['uniform'][llik['selection_won'] == 1])
@@ -139,14 +154,18 @@ class Strategy(object):
 
         return scorecard
 
+    def handle_race(self, race):
+        raise RuntimeError('Abstract base class: implement the function')
+
 
 class Balius(Strategy):
     def __init__(self, db, vwao='vwao', train='train',
                  mu=DEFAULT_MU, sigma=DEFAULT_SIGMA, beta=DEFAULT_BETA, tau=DEFAULT_TAU, draw_probability=DEFAULT_DRAW,
                  risk_aversion=0.1, min_races=3, max_exposure=50):
         super(Balius, self).__init__(db, vwao, train)
-        logging.info('Balius params: mu=%.2f sigma=%.2f tau=%.2f draw_prob=%.2f risk_aversion=%.2f min_races=%d '
-                     'max_exposure=%.2f' % (mu, sigma, tau, draw_probability, risk_aversion, min_races, max_exposure))
+        logging.debug('Balius params: mu=%.2f sigma=%.2f beta=%.2f tau=%.2f draw_prob=%.2f '
+                      'risk_aversion=%.2f min_races=%d max_exposure=%.2f' %
+                      (mu, sigma, beta, tau, draw_probability, risk_aversion, min_races, max_exposure))
         self.hm = HorseModel(mu=mu, sigma=sigma, beta=beta, tau=tau, draw_probability=draw_probability)
         self.risk_aversion = risk_aversion
         self.min_races = min_races
@@ -179,8 +198,9 @@ class Balius(Strategy):
         runners = race['selection']
         # self.total_matched(race['event_id']) > 2e5
         if np.all(self.hm.get_runs(runners) >= self.min_races):
-            vwao = self.vwao.ix[race['event_id']]['vwao'][runners].values
-            implied = self.vwao.ix[race['event_id']]['implied'][runners].values
+            vwao_dict = self.get_vwao(race['event_id'])
+            vwao = np.array(map(lambda r: vwao_dict[r]['vwao'], runners))
+            implied = np.array(map(lambda r: vwao_dict[r]['implied'], runners))
             p = self.hm.pwin_trapz(runners)
 
             rel = p / implied - 1.0
