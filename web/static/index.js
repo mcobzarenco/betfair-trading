@@ -109,7 +109,7 @@ function scorecard_table(scorecard) {
 }
 
 
-function err(data, a, b) {
+function to(data, a, b) {
     var i = 0;
 }
 
@@ -144,27 +144,35 @@ $(function() {
             },
             {
                 'sTitle': 'mu',
-                'mData': 'mu'
+                'mData': function(source) {return source['mu'].toFixed(2);}
             },
             {
                 'sTitle': 'sigma',
-                'mData': 'sigma'
+                'mData': function(source) {return source['sigma'].toFixed(2);}
             },
             {
                 'sTitle': 'beta',
-                'mData': 'beta'
+                'mData': function(source) {return source['beta'].toFixed(2);}
             },
             {
                 'sTitle': 'tau',
-                'mData': 'tau'
+                'mData': function(source) {return source['tau'].toFixed(2);}
             },
             {
                 'sTitle': 'Mean PnL',
                 'mData': function(source) {return source['mean_pnl'].toFixed(2);}
             },
             {
-                'sTitle': 'log(model/implied)',
-                'mData': function(source) {return source['diff_lik'].toFixed(2);}
+                'sTitle': 'llik(implied)',
+                'mData': function(source) {return source['llik_implied'].toFixed(2);}
+            },
+            {
+                'sTitle': 'llik(model)',
+                'mData': function(source) {return source['llik_model'].toFixed(2);}
+            },
+            {
+                'sTitle': 'diff',
+                'mData': function(source) {return (source['diff'] * 100).toFixed(2);}
             }
         ],
         'bAutoWidth':false,

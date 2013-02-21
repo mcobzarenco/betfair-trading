@@ -48,7 +48,9 @@ def scorecards():
                             'beta': s['params']['ts']['beta'],
                             'tau': s['params']['ts']['tau'],
                             'mean_pnl': s['events']['pnl_net']['mean'],
-                            'diff_lik': s['llik']['model'] - s['llik']['implied']}, scards)
+                            'llik_model': s['llik']['model'],
+                            'llik_implied': s['llik']['implied'],
+                            'diff': (s['llik']['model'] - s['llik']['implied']) / s['events']['coll']['count']}, scards)
     return json.dumps(scards)
 
 

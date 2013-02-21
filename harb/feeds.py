@@ -123,9 +123,6 @@ class TradeFeed(Feed):
 #         self._timestamp = timestamp
 #         self.post_to_all()
 
-
-
-
 class HistoricalFeed(Feed):
     pass
 
