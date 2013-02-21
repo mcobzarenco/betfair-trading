@@ -105,10 +105,20 @@ class Strategy(object):
             scorecard[col] = scorecard[col].to_dict()
         scorecard['daily_pnl'] = list(pandas_to_dicts(scorecard['daily_pnl'].reset_index()))
 
-    def make_scorecard(self, percentile_width=60, comm=DEFAULT_COMM, jsonify=True, llik_frame=False):
+    def event_breakdown(self, comm=DEFAULT_COMM, bets_dataframe=None):
         def calculate_collateral(group):
             return np.min(risk.nwin1_bet_returns(group.amount.values, group.odds.values))
+        bets = pd.DataFrame.from_dict(self.get_bets()) if bets_dataframe is None else bets_dataframe
+        events = pd.DataFrame.from_dict([{'event_id': k,
+                                          'pnl_gross': v.pnl.sum(),
+                                          'coll': calculate_collateral(v),
+                                          'scheduled_off': v['scheduled_off'].iget(0)}
+                                         for k, v in bets.groupby('event_id')]).set_index('event_id')
+        events['pnl_net'] = events.pnl_gross
+        events['pnl_net'][events.pnl_net > 0] *= comm
+        return events
 
+    def make_scorecard(self, percentile_width=60, comm=DEFAULT_COMM, jsonify=True, llik_frame=False):
         bets_summary = ['amount', 'pnl', 'odds']
         bets = pd.DataFrame.from_dict(self.get_bets())
 
@@ -120,13 +130,7 @@ class Strategy(object):
         llik['llik_uniform'] = np.log(llik['uniform'][llik['selection_won'] == 1])
         llik['llik_uniform'].fillna(0.0, inplace=True)
 
-        events = pd.DataFrame.from_dict([{'event_id': k,
-                                          'pnl_gross': v.pnl.sum(),
-                                          'coll': calculate_collateral(v),
-                                          'scheduled_off': v['scheduled_off'].iget(0)}
-                                        for k, v in bets.groupby('event_id')]).set_index('event_id')
-        events['pnl_net'] = events.pnl_gross
-        events['pnl_net'][events.pnl_net > 0] *= comm
+        events = self.event_breakdown(comm, bets)
 
         daily_pnl = events[['scheduled_off', 'pnl_gross', 'pnl_net']]
         daily_pnl['scheduled_off'] = daily_pnl['scheduled_off'].map(lambda t: datetime.datetime(t.year, t.month, t.day))

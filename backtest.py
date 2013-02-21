@@ -23,10 +23,19 @@ from harb.common import configure_root_logger, convert_types, pandas_to_dicts
 
 DEFAULT_NUM = 10
 
+SCORECARDS_COLL = 'bkt_scorecards'
+BETS_COLL = 'bkt_bets'
+EVENTS_COLL = 'bkt_events'
+
 
 def parse_date(d):
     return dateutil.parser.parse(d, dayfirst=True) if d is not None else None
 
+
+def add_scorecard_id_to_dicts(scorecard_id, dicts):
+    for d in dicts:
+        d['scorecard_id'] = scorecard_id
+        yield d
 
 def run_backtest(context):
     n_bkt, args, mparams = context
@@ -48,12 +57,16 @@ def run_backtest(context):
     now = datetime.datetime.utcnow()
     scorecard['timestamp'] = now
     scorecard['run_seconds'] = en - st
-    scorecard_id = db['scorecards'].insert(scorecard)
-    logging.info('Scorecard inserted in the database with id=%s' % scorecard_id)
+    scorecard_id = db[SCORECARDS_COLL].insert(scorecard)
+    logging.info('Scorecard inserted in %s with id=%s' % (db[SCORECARDS_COLL], scorecard_id))
 
-    db['bets'].insert({'bets': strat.get_bets(),
-                       'timestamp': now,
-                       'scorecard_id': scorecard_id})
+    bets = add_scorecard_id_to_dicts(scorecard_id, strat.get_bets())
+    db[BETS_COLL].insert(bets)
+    logging.info('Associated bets inserted in %s' % db[BETS_COLL])
+
+    events = add_scorecard_id_to_dicts(scorecard_id, pandas_to_dicts(strat.event_breakdown()))
+    db[EVENTS_COLL].insert(events)
+    logging.info('Associated event breakdown inserted in %s' % db[EVENTS_COLL])
 
 
 def arg_linspace(s):
