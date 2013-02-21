@@ -37,6 +37,7 @@ def add_scorecard_id_to_dicts(scorecard_id, dicts):
         d['scorecard_id'] = scorecard_id
         yield d
 
+
 def run_backtest(context):
     n_bkt, args, mparams = context
 
