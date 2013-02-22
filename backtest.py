@@ -61,12 +61,11 @@ def run_backtest(context):
     scorecard_id = db[SCORECARDS_COLL].insert(scorecard)
     logging.info('Scorecard inserted in %s with id=%s' % (db[SCORECARDS_COLL], scorecard_id))
 
-    bets = add_scorecard_id_to_dicts(scorecard_id, strat.get_bets())
-    db[BETS_COLL].insert(bets)
+    db[BETS_COLL].insert(add_scorecard_id_to_dicts(scorecard_id, strat.get_bets()))
     logging.info('Associated bets inserted in %s' % db[BETS_COLL])
 
-    events = add_scorecard_id_to_dicts(scorecard_id, pandas_to_dicts(strat.event_breakdown()))
-    db[EVENTS_COLL].insert(events)
+    events = strat.event_breakdown().reset_index()
+    db[EVENTS_COLL].insert(add_scorecard_id_to_dicts(scorecard_id, pandas_to_dicts(events, {'event_id': int})))
     logging.info('Associated event breakdown inserted in %s' % db[EVENTS_COLL])
 
 

@@ -1,4 +1,7 @@
 
+var IMAGES_ROOT = '/static/libs/DataTables-1.9.4/media/images/';
+var events_table = null;
+
 function zip(xs, ys) {
     var zipped = [];
     for (var i = 0; i < xs.length; i++) {
@@ -54,6 +57,141 @@ function toFixed2(x) {
     return x.toFixed(2);
 }
 
+
+function open_row(row, bets) {
+    if(bets.length == 0)
+        return;
+
+    var dist_id = 'dist_' + bets[0]['event_id'];
+    var $details = $('<div></div>');
+    var $distribution = $('<div></div>').attr('id', dist_id).css({width: '100%'});;
+    var $table = $('<table></table>').css({width: '50%', float: 'left'});
+    $details.append($table).append($distribution);
+    events_table.fnOpen(row, $details, 'details');
+
+    $table.dataTable({
+        aaData: bets,
+        sDom: '<"top">rt<"bottom"flp><"clear">',
+        aoColumns: [
+            {
+                'sTitle': 'Selection',
+                'mData': 'selection'
+            },
+            {
+                'sTitle': 'Amount',
+                'sClass': 'series_value',
+                'mData': function(source) {return source['amount'].toFixed(2);}
+            },
+            {
+                'sTitle': 'VWAO',
+                'sClass': 'series_value',
+                'mData': function(source) {return source['odds'].toFixed(2);}
+            },
+            {
+                'sTitle': 'Model Odds',
+                'sClass': 'series_value',
+                'mData': function(source) {return source['u_odds'].toFixed(2);}
+            },
+            {
+                'sTitle': 'Won',
+                'sClass': 'series_value',
+                'mData': 'selection_won'
+            },
+            {
+                'sTitle': 'PnL',
+                'sClass': 'series_value',
+                'mData': function(source) {return source['pnl'].toFixed(2);}
+            }
+        ],
+        bPaginate: false,
+        bFilter: false
+    });
+
+
+    var runners = bets.map(function(b) {return b['selection']});
+    new Highcharts.Chart({
+        chart: {
+            renderTo: dist_id,
+            type: 'column',
+            height: 440
+        },
+        credits: {
+            enabled: false
+        },
+        title: {
+            text: 'Daily PnL',
+            x: -20 //center
+        },
+        xAxis:{
+            categories: runners,
+            labels: {
+                align:'left'
+            }
+        },
+        yAxis: {
+            title: {
+                text: 'Cummulative PnL (GBP)'
+            },
+            plotLines: [
+                {
+                    value: 0,
+                    width: 1,
+                    color: '#808080'
+                }
+            ]
+        },
+        tooltip: {
+            valueDecimals:2
+        },
+        plotOptions:{
+            line: {
+                marker:{
+                    enabled:false
+                }
+            },
+            column: {
+                borderWidth: 0.1,
+                groupPadding: 0.04,
+                pointPadding: 0,
+                shadow: true
+            }
+        },
+        series: [
+            {
+                type: 'column',
+                name: 'VWAO',
+                data: zip(runners, bets.map(function(b) {return b['odds']}))
+            },
+            {
+                type: 'column',
+                name: 'Model',
+                data: zip(runners, bets.map(function(b) {return b['u_odds']}))
+            }
+        ]
+    });
+}
+
+function attach_accordion_handlers() {
+    $('#events_table td.control').on('click', function () {
+        var parent = this.parentNode;
+
+        if(!$(parent).hasClass('accordion-open')) {
+            $('img', this).attr('src', IMAGES_ROOT + "details_close.png");
+            var row_data = events_table.fnGetData(parent);
+            $.ajax({
+                'url': '/api/bets/' + scorecard['scorecard_id'] + '/' + row_data['event_id'],
+                'success': function(bets) {open_row(parent, bets);}
+            });
+        }
+        else {
+            $('img', this).attr('src', IMAGES_ROOT + "details_open.png");
+            events_table.fnClose(parent);
+        }
+        $(parent).toggleClass('accordion-open');
+    } );
+}
+
+
 $(function() {
     $('.scorecard_id').html(scorecard['_id']);
 
@@ -65,9 +203,9 @@ $(function() {
     var params_risk__series = describe_series(scorecard['params']['risk'], 'Risk', toFixed2);
 
     var events_series = describe_table(scorecard['events'], 'Events', toFixed2);
-    var all_series = describe_table(scorecard['all'], 'All', toFixed2);
-    var backs_series = describe_table(scorecard['backs'], 'Backs', toFixed2);
-    var lays_series = describe_table(scorecard['lays'], 'Lays', toFixed2);
+    var all_series = describe_table(scorecard['all'], 'Bets', toFixed2);
+    var backs_series = describe_table(scorecard['backs'], 'Bets (backs)', toFixed2);
+    var lays_series = describe_table(scorecard['lays'], 'Bets (lays)', toFixed2);
 
     $('#llik_series').append(llik_series);
     $('#params_ts').append(params_ts_series);
@@ -148,6 +286,58 @@ $(function() {
             }
         ]
     });
+
+    events_table = $('#events_table').dataTable({
+        'sDom': "<'row-fluid'<'span6'l><'span6'f>r>t<'row-fluid'<'span6'i><'span6'p>>",
+        'bProcessing': true,
+        'sAjaxSource': '/api/events/' + scorecard['scorecard_id'],
+        'sAjaxDataProp': '',
+        'aoColumns': [
+            {
+                'mData':null,
+                'sClass':'control centre',
+                'sDefaultContent':'<img src="' + IMAGES_ROOT + 'details_open.png">',
+                'sTitle':''
+            },
+            {
+                'sTitle': 'Scheduled Off',
+                'mData': function(source, type, val) {
+                    if(typeof type === 'undefined') {
+                        source.timestamp = moment(source['scheduled_off']);
+                    }
+
+                    if (type === 'display' || type === 'filter') {
+                        return  source.timestamp.format("YYYY-MM-DD HH:mm");
+                    }
+                    return source.timestamp;
+                }
+            },
+            {
+                'sTitle': 'Event ID',
+                'mData': 'event_id'
+            },
+            {
+                'sTitle': 'Collateral',
+                'mData': function(source) {return source['coll'].toFixed(2);},
+                'sClass': 'series_value'
+            },
+            {
+                'sTitle': 'PnL (Gross)',
+                'mData': function(source) {return source['pnl_gross'].toFixed(2);},
+                'sClass': 'series_value'
+            },
+            {
+                'sTitle': 'PnL (Net)',
+                'mData': function(source) {return source['pnl_net'].toFixed(2);},
+                'sClass': 'series_value'
+            }
+        ],
+        'bAutoWidth':false,
+        'sPaginationType':'bootstrap',
+        "iDisplayLength": 50,
+        fnInitComplete: attach_accordion_handlers
+    });
+
 });
 
 

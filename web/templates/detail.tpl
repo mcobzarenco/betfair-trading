@@ -1,8 +1,12 @@
 <!DOCTYPE html>
 <html>
 <link href="/static/libs/bootstrap.min.css" rel="stylesheet">
+<link href="/static/libs/dataTables-bootstrap.css" rel="stylesheet">
 <link href="/static/detail.css" rel="stylesheet">
 <script src="/static/libs/jquery-1.9.1.js"></script>
+<script src="/static/libs/DataTables-1.9.4/media/js/jquery.dataTables.js"></script>
+<script src="/static/libs/dataTables-bootstrap.js"></script>
+<script src="/static/libs/moment.min.js"></script>
 <script src="/static/libs/highstock.js"></script>
 
 <script type="text/javascript" >
@@ -33,14 +37,19 @@
         <div class="span8" id="daily_pnl"></div>
     </div>
     <div class="row-fluid">
-        <div class="span4" id="all_series"></div>
-        <div class="span4" id="backs_series"></div>
-        <div class="span4" id="lays_series"></div>
+        <div class="span3" id="events_series"></div>
+        <div class="span3" id="all_series"></div>
+        <div class="span3" id="backs_series"></div>
+        <div class="span3" id="lays_series"></div>
     </div>
     <div class="row-fluid">
-        <div class="span4" id="events_series"></div>
+
     </div>
+    <table id="events_table" class="table table-condensed"></table>
     <div class="row-fluid">
+        <div class="span12">
+
+        </div>
 
     </div>
 </div>

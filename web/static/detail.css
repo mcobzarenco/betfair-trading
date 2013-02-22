@@ -6,3 +6,11 @@ th.series_subheader {
 td.series_value {
     text-align: right;
 }
+
+td.centre {
+    text-align: center;
+}
+
+.details {
+    background-color: #cbd4dd;
+}

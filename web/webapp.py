@@ -6,8 +6,12 @@ from pymongo import MongoClient
 from bson.objectid import ObjectId
 import pandas as pd
 
-from bottle import route, run, template, debug, static_file
+from bottle import route, run, template, debug, static_file, response
 
+
+SCORECARDS_COLL = 'bkt_scorecards'
+BETS_COLL = 'bkt_bets'
+EVENTS_COLL = 'bkt_events'
 
 SCORECARD_TABLE_FIELDS = {'timestamp': 1, '_id': 1, 'params': 1, 'events': 1, 'llik': 1}
 SCORECARD_TABLE_ORDER = ['timestamp', '_id', 'mu', 'sigma', 'beta', 'tau', 'mean_pnl', 'diff_lik']
@@ -35,12 +39,14 @@ def server_static(filename="index.html"):
 
 @route('/detail/<scorecard_id>')
 def detail(scorecard_id):
-    return template('templates/detail', json_scorecard=json.dumps(scorecard(scorecard_id), default=to_json))
+    json_scorecard = json.dumps(scorecard(scorecard_id), default=to_json)
+    response.set_header('Content-Type', 'text/html')
+    return template('templates/detail', json_scorecard=json_scorecard)
 
 
-@route('/scorecards')
+@route('/api/scorecards')
 def scorecards():
-    scards = list(db['scorecards'].find(fields=SCORECARD_TABLE_FIELDS))
+    scards = list(db[SCORECARDS_COLL].find(fields=SCORECARD_TABLE_FIELDS))
     scards = map(lambda s: {'timestamp': s['timestamp'].isoformat(),
                             '_id': str(s['_id']),
                             'mu': s['params']['ts']['mu'],
@@ -51,20 +57,43 @@ def scorecards():
                             'llik_model': s['llik']['model'],
                             'llik_implied': s['llik']['implied'],
                             'diff': (s['llik']['model'] - s['llik']['implied']) / s['events']['coll']['count']}, scards)
+    response.set_header('Content-Type', 'application/json')
     return json.dumps(scards)
 
 
-@route('/scorecard/<scorecard_id>')
+@route('/api/scorecard/<scorecard_id>')
 def scorecard(scorecard_id):
-    scorecard = db['scorecards'].find_one({'_id': ObjectId(scorecard_id)})
-    scorecard['_id'] = str(scorecard['_id'])
-    return json.dumps(scorecard, default=to_json)
+    print(response.headers.items())
+    scard = db[SCORECARDS_COLL].find_one({'_id': ObjectId(scorecard_id)}, fields={'_id': 0})
+    scard['scorecard_id'] = scorecard_id
+    response.set_header('Content-Type', 'application/json')
+    return json.dumps(scard, default=to_json)
 
 
-@route('/bets/<scorecard_id>')
-def get_bets(scorecard_id):
-    bets = db['bets'].find_one({'scorecard_id': ObjectId(scorecard_id)})
-    return pd.DataFrame.from_dict(bets['bets']).to_html()
+@route('/api/bets/<scorecard_id>')
+def bets(scorecard_id):
+    bets = list(db[BETS_COLL].find({'scorecard_id': ObjectId(scorecard_id)},
+                                   fields={'_id': 0}))
+    for bet in bets:
+        bet['scorecard_id'] = str(bet['scorecard_id'])
+    response.set_header('Content-Type', 'application/json')
+    return json.dumps(bets, default=to_json)
+
+
+@route('/api/bets/<scorecard_id>/<event_id>')
+def bets_event(scorecard_id, event_id):
+    bets = list(db[BETS_COLL].find({'scorecard_id': ObjectId(scorecard_id), 'event_id': int(event_id)},
+                                   fields={'_id': 0, 'scorecard_id': 0}))
+    response.set_header('Content-Type', 'application/json')
+    return json.dumps(bets, default=to_json)
+
+
+@route('/api/events/<scorecard_id>')
+def events(scorecard_id):
+    events = list(db[EVENTS_COLL].find({'scorecard_id': ObjectId(scorecard_id)},
+                                       fields={'_id': 0, 'scorecard_id': 0}))
+    response.set_header('Content-Type', 'application/json')
+    return json.dumps(events, default=to_json)
 
 
 debug(True)
