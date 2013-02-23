@@ -10,18 +10,30 @@
 <script src="/static/libs/highstock.js"></script>
 
 <script type="text/javascript" >
-    var scorecard = JSON.parse({{!json_scorecard}});
+    var scorecard = {{!json_scorecard}};
 </script>
 <script type="text/javascript" src="/static/detail.js"></script>
 <head>
-    <title></title>
+    <title>Backtests - Details</title>
 </head>
 <body>
 
 <div class="container-fluid" style="width: 90%; margin-left: auto; margin-right: auto;">
     <div class="row-fluid">
+        <div class="span12" style="padding-top: 10px">
+            <ul class="nav nav-pills">
+                <li class="active">
+                    <a href="/">Backtests</a>
+                </li>
+                <li>
+                    <a href="/paper">Paper Trading</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <div class="row-fluid">
         <div class="span12">
-            <h3> Scorecard <span class="scorecard_id"></span></h3>
+            <h3> Scorecard <span id="scorecard_id"></span></h3>
         </div>
     </div>
     <div class="row-fluid">

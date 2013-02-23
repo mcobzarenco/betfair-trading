@@ -64,9 +64,10 @@ function open_row(row, bets) {
 
     var dist_id = 'dist_' + bets[0]['event_id'];
     var $details = $('<div></div>');
-    var $distribution = $('<div></div>').attr('id', dist_id).css({width: '100%'});;
-    var $table = $('<table></table>').css({width: '50%', float: 'left'});
-    $details.append($table).append($distribution);
+    var $distribution = $('<div></div>').attr('id', dist_id);
+    var $table = $('<table></table>').css('width', '100%');
+    $details.append($('<div></div>').addClass('row-fluid').append($('<div></div>').addClass('span8').append($table)))
+            .append($('<div></div>').addClass('row-fluid').append($('<div></div>').addClass('span12').append($distribution)));
     events_table.fnOpen(row, $details, 'details');
 
     $table.dataTable({
@@ -82,15 +83,21 @@ function open_row(row, bets) {
                 'sClass': 'series_value',
                 'mData': function(source) {return source['amount'].toFixed(2);}
             },
+
             {
                 'sTitle': 'VWAO',
                 'sClass': 'series_value',
-                'mData': function(source) {return source['odds'].toFixed(2);}
+                'mData': function(source) {return source['vwao'].toFixed(2);}
             },
             {
                 'sTitle': 'Model Odds',
                 'sClass': 'series_value',
                 'mData': function(source) {return source['u_odds'].toFixed(2);}
+            },
+            {
+                'sTitle': 'Volume Matched',
+                'sClass': 'series_value',
+                'mData': function(source) {return source['volume_matched'].toFixed(2);}
             },
             {
                 'sTitle': 'Won',
@@ -112,6 +119,7 @@ function open_row(row, bets) {
     new Highcharts.Chart({
         chart: {
             renderTo: dist_id,
+            backgroundColor: '#E8E8E8',
             type: 'column',
             height: 440
         },
@@ -158,12 +166,10 @@ function open_row(row, bets) {
         },
         series: [
             {
-                type: 'column',
                 name: 'VWAO',
-                data: zip(runners, bets.map(function(b) {return b['odds']}))
+                data: zip(runners, bets.map(function(b) {return b['vwao']}))
             },
             {
-                type: 'column',
                 name: 'Model',
                 data: zip(runners, bets.map(function(b) {return b['u_odds']}))
             }
@@ -172,6 +178,7 @@ function open_row(row, bets) {
 }
 
 function attach_accordion_handlers() {
+    $('#events_table td.control').off('click');
     $('#events_table td.control').on('click', function () {
         var parent = this.parentNode;
 
@@ -193,7 +200,7 @@ function attach_accordion_handlers() {
 
 
 $(function() {
-    $('.scorecard_id').html(scorecard['_id']);
+    $('#scorecard_id').html(scorecard['scorecard_id']);
 
     $('#timestamp').html(scorecard['timestamp']);
     $('#time_taken').html(scorecard['run_seconds'].toFixed(0));
@@ -222,6 +229,7 @@ $(function() {
     new Highcharts.StockChart({
         chart: {
             renderTo: 'daily_pnl',
+            backgroundColor: '#E8E8E8',
             //type: 'column',
             zoomType: 'x',
             height: 440
@@ -317,6 +325,14 @@ $(function() {
                 'mData': 'event_id'
             },
             {
+                'sTitle': 'Event',
+                'mData': 'event'
+            },
+            {
+                'sTitle': 'Course',
+                'mData': 'course'
+            },
+            {
                 'sTitle': 'Collateral',
                 'mData': function(source) {return source['coll'].toFixed(2);},
                 'sClass': 'series_value'
@@ -335,7 +351,7 @@ $(function() {
         'bAutoWidth':false,
         'sPaginationType':'bootstrap',
         "iDisplayLength": 50,
-        fnInitComplete: attach_accordion_handlers
+        fnDrawCallback: attach_accordion_handlers
     });
 
 });
