@@ -9,6 +9,8 @@ import pandas as pd
 from bottle import route, run, template, debug, static_file, response
 
 
+VWAO_COLL = 'vwao'
+
 SCORECARDS_COLL = 'bkt_scorecards'
 BETS_COLL = 'bkt_bets'
 EVENTS_COLL = 'bkt_events'
@@ -16,7 +18,7 @@ EVENTS_COLL = 'bkt_events'
 SCORECARD_TABLE_FIELDS = {'timestamp': 1, '_id': 1, 'params': 1, 'events': 1, 'llik': 1}
 SCORECARD_TABLE_ORDER = ['timestamp', '_id', 'mu', 'sigma', 'beta', 'tau', 'mean_pnl', 'diff_lik']
 
-db = MongoClient(port=30001)['betfair']
+db = MongoClient(port=33000)['betfair']
 
 
 def to_json(x):
@@ -31,15 +33,27 @@ def to_json(x):
 
 
 
-@route('/')
 @route('/static/<filename:path>')
 def server_static(filename="index.html"):
     return static_file(filename, root='static/')
 
 
+@route('/')
+def index():
+    json_scorecards = scorecards()
+    response.set_header('Content-Type', 'text/html')
+    return template('templates/index', json_scorecards=json_scorecards)
+
+
+@route('/paper')
+def paper():
+    response.set_header('Content-Type', 'text/html')
+    return template('templates/paper')
+
+
 @route('/detail/<scorecard_id>')
 def detail(scorecard_id):
-    json_scorecard = json.dumps(scorecard(scorecard_id), default=to_json)
+    json_scorecard = scorecard(scorecard_id)
     response.set_header('Content-Type', 'text/html')
     return template('templates/detail', json_scorecard=json_scorecard)
 
@@ -84,6 +98,9 @@ def bets(scorecard_id):
 def bets_event(scorecard_id, event_id):
     bets = list(db[BETS_COLL].find({'scorecard_id': ObjectId(scorecard_id), 'event_id': int(event_id)},
                                    fields={'_id': 0, 'scorecard_id': 0}))
+    for bet in bets:
+        vwao = db[VWAO_COLL].find_one({'event_id': int(event_id), 'selection': bet['selection']})
+        bet['volume_matched'] = vwao['volume_matched']
     response.set_header('Content-Type', 'application/json')
     return json.dumps(bets, default=to_json)
 
