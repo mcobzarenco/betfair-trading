@@ -65,7 +65,8 @@ def run_backtest(context):
     logging.info('Associated bets inserted in %s' % db[BETS_COLL])
 
     events = strat.event_breakdown().reset_index()
-    db[EVENTS_COLL].insert(add_scorecard_id_to_dicts(scorecard_id, pandas_to_dicts(events, {'event_id': int})))
+    events = pandas_to_dicts(events, {'event_id': int, 'n_runners': int})
+    db[EVENTS_COLL].insert(add_scorecard_id_to_dicts(scorecard_id, events))
     logging.info('Associated event breakdown inserted in %s' % db[EVENTS_COLL])
 
 

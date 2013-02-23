@@ -31,15 +31,21 @@ class Strategy(object):
         if user_fields is None:
             user_fields = {}
 
-        odds = self.get_vwao(event_id, selection)['vwao']
+        vwao_dict = self.get_vwao(event_id, selection)
+        vwao = vwao_dict['vwao']
         win = int(selection in self._curr['winners'])
-        pnl = win * amount * (odds - 1) - (1 - win) * amount
+        pnl = win * amount * (vwao - 1) - (1 - win) * amount
 
         bet = {'event_id': event_id,
+               'country': self._curr['country'],
+               'event': self._curr['event'],
+               'course': self._curr['course'],
+               'n_runners': self._curr['n_runners'],
                'scheduled_off': self._curr['scheduled_off'],
                'selection': selection,
                'amount': amount,
-               'odds': odds,
+               'vwao': vwao,
+               'volume_matched': vwao_dict['volume_matched'],
                'pnl': pnl,
                'selection_won': win,
                'winners': self._curr['winners']}
@@ -107,9 +113,13 @@ class Strategy(object):
 
     def event_breakdown(self, comm=DEFAULT_COMM, bets_dataframe=None):
         def calculate_collateral(group):
-            return np.min(risk.nwin1_bet_returns(group.amount.values, group.odds.values))
+            return np.min(risk.nwin1_bet_returns(group.amount.values, group.vwao.values))
         bets = pd.DataFrame.from_dict(self.get_bets()) if bets_dataframe is None else bets_dataframe
         events = pd.DataFrame.from_dict([{'event_id': k,
+                                          'event': v['event'].iget(0),
+                                          'course': v['course'].iget(0),
+                                          'country': v['country'].iget(0),
+                                          'n_runners': v['n_runners'].iget(0),
                                           'pnl_gross': v.pnl.sum(),
                                           'coll': calculate_collateral(v),
                                           'scheduled_off': v['scheduled_off'].iget(0)}
@@ -119,7 +129,7 @@ class Strategy(object):
         return events
 
     def make_scorecard(self, percentile_width=60, comm=DEFAULT_COMM, jsonify=True, llik_frame=False):
-        bets_summary = ['amount', 'pnl', 'odds']
+        bets_summary = ['amount', 'pnl', 'vwao']
         bets = pd.DataFrame.from_dict(self.get_bets())
 
         user_columns = bets.filter(regex='u_.*').columns.tolist()
@@ -210,8 +220,8 @@ class Balius(Strategy):
             rel = p / implied - 1.0
             t = 0.1
 
-            p[rel < -t] = implied[rel < -t] * 0.95
-            p[rel > t] = implied[rel > t] * 1.05
+            p[rel < -t] = implied[rel < -t] * 0.8
+            p[rel > t] = implied[rel > t] * 1.2
 
             #print(p)
             # ps = (self.hm.get_runs(runners) * p + 4 * q) / (4 + self.hm.get_runs(runners))
@@ -229,7 +239,7 @@ class Balius(Strategy):
                 logging.info('Betting on event_id=%d: |exposure|=%.2f collateral=%.2f' %
                              (race['event_id'], np.sum(np.abs(w)), np.min(returns)))
                 for i, r in enumerate(runners):
-                    if np.abs(w[i]) > 0.01:
+                    if np.abs(w[i]) > 0.01 and vwao[i] < 50.0:
                         self.bet(race['event_id'], r, w[i], {'p': p[i], 'odds': 1.0 / p[i]})
 
         self.hm.fit_race(race)
