@@ -119,30 +119,37 @@ class HorseModel(object):
             pwin[i] = trapz(p, dx=(end - start) / float(nsteps))
         return pwin
 
-    def as_dict(self):
-        items = self._ratings.items()
-        dicts = map(lambda x: {'runner': x[0],
-                               'mu': x[1]['rating'][0].mu,
-                               'sigma': x[1]['rating'][0].sigma,
-                               'n_races': x[1]['n_races'],
-                               'n_wins': x[1]['n_wins']}, items)
-        return dicts
-
     def get_ratings(self, runners):
         return [self._ratings[x]['rating'][0] for x in runners]
 
     def get_runs(self, runners):
         return array([self._ratings[x]['n_races'] for x in runners])
 
+    def to_dict(self):
+        items = self._ratings.items()
+        ratings = map(lambda x: {'runner': x[0],
+                                 'mu': x[1]['rating'][0].mu,
+                                 'sigma': x[1]['rating'][0].sigma,
+                                 'n_races': x[1]['n_races'],
+                                 'n_wins': x[1]['n_wins']}, items)
+        return {
+            'ts': {
+                'mu': self._ts.mu,
+                'sigma': self._ts.sigma,
+                'beta': self._ts.beta,
+                'tau': self._ts.tau,
+                'draw_probability': self._ts.draw_probability
+            },
+            'ratings': ratings
+        }
+
     @staticmethod
-    def from_dict(dicts):
-        hm = HorseModel()
-        ratings = hm._create_ratings()
-        for d in dicts:
-            ratings[d['runner']] = {'rating': (Rating(d['mu'], d['sigma']), ),
-                                    'n_races': d['n_races'],
-                                    'n_wins': d['n_wins']}
-        hm._ratings = ratings
+    def from_dict(hm_dict):
+        hm = HorseModel(**hm_dict['ts'])
+        for r in hm_dict['ratings']:
+            hm._ratings[r['runner']] = {'rating': (Rating(r['mu'], r['sigma']), ),
+                                        'n_races': r['n_races'],
+                                        'n_wins': r['n_wins']}
         return hm
 
 

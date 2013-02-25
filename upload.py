@@ -12,24 +12,8 @@ import dateutil
 import numpy as np
 import pandas as pd
 
-from harb.common import configure_root_logger, TO_BE_PLACED, convert_types, pandas_to_dicts
-
-
-SELECTION_BLACK_LIST = [
-    'lengths inclusive',
-    'any other individual jockey'
-]
-
-
-def extract_name(s):
-    pos = re.search('[A-Za-z]', s)
-    if pos is None:
-        return None
-    else:
-        name = s[pos.start():].strip().lower()
-        if any(map(lambda x: x in name, ('yes', 'no'))):
-            return None
-        return name
+from harb.common import configure_root_logger, TO_BE_PLACED, convert_types, \
+    pandas_to_dicts, SELECTION_BLACK_LIST, extract_horse_name
 
 
 def races_from_bars(bars):
@@ -126,7 +110,7 @@ def upload(args):
 
         # Insert other filters here:
         bars = bars[bars.in_play == 'PE']
-        bars['selection'] = bars['selection'].map(extract_name)
+        bars['selection'] = bars['selection'].map(extract_horse_name)
 
         races = races_from_bars(bars).reset_index()
         train = training_from_races(races)

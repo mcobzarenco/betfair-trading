@@ -5,6 +5,7 @@ import datetime
 import logging
 import time
 import argparse
+from collections import defaultdict
 from itertools import product
 from multiprocessing import Pool, cpu_count
 import warnings
@@ -17,12 +18,13 @@ import pandas as pd
 from pymongo import MongoClient
 
 from harb.analytics import DEFAULT_MU, DEFAULT_SIGMA, DEFAULT_BETA, DEFAULT_TAU, DEFAULT_DRAW
-from harb.strategy import Balius
+from harb.strategy import Balius, VWAOPricer
 from harb.common import configure_root_logger, convert_types, pandas_to_dicts
 
 
 DEFAULT_NUM = 10
 
+STRATEGIES_COLL = 'bkt_strategies'
 SCORECARDS_COLL = 'bkt_scorecards'
 BETS_COLL = 'bkt_bets'
 EVENTS_COLL = 'bkt_events'
@@ -45,19 +47,34 @@ def run_backtest(context):
     configure_root_logger(args.logtty, args.logfile, formatter=formatter)
 
     db = MongoClient(args.host, args.port)[args.db]
-    strat = Balius(db, args.vwao, args.train,
-                   mu=mparams['mu'], sigma=mparams['sigma'], beta=mparams['beta'], tau=mparams['tau'],
+
+    where_clause = defaultdict(lambda: {})
+    country, start_date, end_date = 'GB', parse_date(args.start), parse_date(args.end)
+    if start_date is not None:
+        where_clause['scheduled_off']['$gte'] = start_date
+    if end_date is not None:
+        where_clause['scheduled_off']['$lte'] = end_date
+    if country is not None:
+        where_clause['country'] = country
+    sorted_races = db[args.train].find(where_clause, sort=[('scheduled_off', 1)], timeout=False)
+
+    px_engine = VWAOPricer(db, args.vwao)
+    strat = Balius(px_engine, mu=mparams['mu'], sigma=mparams['sigma'], beta=mparams['beta'], tau=mparams['tau'],
                    draw_probability=mparams['draw_prob'], risk_aversion=mparams['risk_aversion'],
                    min_races=mparams['min_races'], max_exposure=mparams['max_exposure'])
     st = time.clock()
-    strat.run('GB', parse_date(args.start), parse_date(args.end))
+    strat.run(sorted_races)
     en = time.clock()
     logging.info('Backtest finished in %.2f seconds' % (en - st))
+
+    strat_id = db[STRATEGIES_COLL].insert(strat.to_dict())
+    logging.info('Strategy serialised to %s with id=%s' % (db[STRATEGIES_COLL], strat_id))
 
     scorecard = strat.make_scorecard()
     now = datetime.datetime.utcnow()
     scorecard['timestamp'] = now
     scorecard['run_seconds'] = en - st
+    scorecard['strategy_id'] = strat_id
     scorecard_id = db[SCORECARDS_COLL].insert(scorecard)
     logging.info('Scorecard inserted in %s with id=%s' % (db[SCORECARDS_COLL], scorecard_id))
 

@@ -1,5 +1,6 @@
 from __future__ import print_function, division
 
+import re
 import logging
 import datetime
 
@@ -7,11 +8,29 @@ import pymongo
 
 TO_BE_PLACED = 'TO BE PLACED'
 
+SELECTION_BLACK_LIST = [
+    'yes',
+    'no',
+    'lengths inclusive',
+    'any other individual jockey'
+]
+
+
+def extract_horse_name(s):
+    pos = re.search('[A-Za-z]', s)
+    if pos is None:
+        return None
+    else:
+        name = s[pos.start():].strip().lower()
+        if any(map(lambda x: x in name, SELECTION_BLACK_LIST)):
+            return None
+        return name
+
 
 def configure_root_logger(to_stdout=True, file_out=None, level=logging.DEBUG, formatter=None):
     logger = logging.getLogger()
     logger.handlers = []
-    logger.setLevel(logging.INFO)
+    logger.setLevel(level)
     # create console handler and set level to debug
     if formatter is None:
         formatter = logging.Formatter('%(asctime)s - %(levelname)s: %(message)s')

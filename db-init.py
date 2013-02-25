@@ -7,7 +7,7 @@ from harb.common import configure_root_logger
 
 
 HOST = 'localhost'
-PORT = 30001
+PORT = 33000
 DB = 'betfair'
 
 VWAO_COLL = 'vwao'
