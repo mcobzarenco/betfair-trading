@@ -18,7 +18,7 @@ PASSWORD = 'Antiquark_87'
 
 
 class Throtle(object):
-    def __init__(self, calls_per_min=20):
+    def __init__(self, calls_per_min=30):
         self._secs_between_calls = 60.0 / calls_per_min
         self._last_call = 0.0
 
@@ -96,7 +96,7 @@ def future_markets(menu_prefix='\\Horse Racing\\GB', hours=24):
     before_date = now + datetime.timedelta(hours=hours)
 
     markets = throtle(client.get_all_markets, kwargs={'hours': 24})
-    print('fsddddddddddddddddddsfsdfsdfdsjashdkjsahdkhksahdkajshdkjsa')
+    logging.info('Getting all markets..')
     if isinstance(markets, str):
         raise RuntimeError(markets)
     markets = ifilter(lambda x: before_date > x['event_date'] > now and x['menu_path'].startswith(menu_prefix),
@@ -105,21 +105,26 @@ def future_markets(menu_prefix='\\Horse Racing\\GB', hours=24):
         detailed = throtle(client.get_market, [m['market_id']])
         if isinstance(detailed, str):
             raise RuntimeError(detailed)
+
         runners, selection_ids = [], []
+        invalid_selection = False
         for r in detailed['runners']:
             horse_name = extract_horse_name(r['name'])
             if horse_name is None:
                 logging.warning('Skipping market with id=%s as selection="%s" is not a horse name.' %
                                 (m['market_id'], r['name']))
-                continue
+                invalid_selection = True
+                break
             runners.append(horse_name)
             selection_ids.append(r['selection_id'])
-        yield {
-            'country': detailed['countryISO3'],
-            'course': m['menu_path'].split('\\')[-1],
-            'event': m['market_name'],
-            'event_id': m['market_id'],
-            'scheduled_off': dateutil.parser.parse(detailed['marketTime']).replace(tzinfo=None),
-            'n_runners': len(runners),
-            'selection': runners
-        }
+
+        if not invalid_selection:
+            yield {
+                'country': detailed['countryISO3'],
+                'course': m['menu_path'].split('\\')[-1],
+                'event': m['market_name'],
+                'event_id': m['market_id'],
+                'scheduled_off': dateutil.parser.parse(detailed['marketTime']).replace(tzinfo=None),
+                'n_runners': len(runners),
+                'selection': runners
+            }

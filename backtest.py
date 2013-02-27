@@ -44,7 +44,9 @@ def run_backtest(context):
     n_bkt, args, mparams = context
 
     formatter = logging.Formatter('%(asctime)s - n_bkt=' + str(n_bkt) + ' - %(levelname)s: %(message)s')
-    configure_root_logger(args.logtty, args.logfile, formatter=formatter)
+    configure_root_logger(args.logtty, args.logfile,
+                          MongoClient(args.host, args.port)[args.db][args.logmongo] if args.logmongo is not None
+                          else None, formatter=formatter)
 
     db = MongoClient(args.host, args.port)[args.db]
 
@@ -125,11 +127,15 @@ if __name__ == '__main__':
     parser.add_argument('--max-exposure', type=arg_linspace, action='store', default=[50], metavar='EXP',
                         help='maximum exposure')
     parser.add_argument('--logfile', type=str, action='store', default=None, help='specifies what log file to use')
+    parser.add_argument('--logmongo', type=str, action='store', default=None,
+                        help='specifies what collection to use for logging to MongoDB')
     parser.add_argument('--logtty', help='prints logging info to the terminal', action='store_true')
     parser.add_argument('train', type=str, action='store', help='training set collection')
     args = parser.parse_args()
 
-    configure_root_logger(args.logtty, args.logfile)
+    configure_root_logger(args.logtty, args.logfile,
+                          MongoClient(args.host, args.port)[args.db][args.logmongo] if args.logmongo is not None
+                          else None)
 
     keys = ['mu', 'sigma', 'beta', 'tau', 'draw_prob', 'risk_aversion', 'min_races', 'max_exposure']
     mparams = [args.mu, args.sigma, args.beta, args.tau, args.draw_prob,
@@ -142,4 +148,6 @@ if __name__ == '__main__':
     pool = Pool(processes=n_processes)
 
     pool.map(run_backtest, ((n_bkt, args, dict(zip(keys, values))) for n_bkt, values in enumerate(product(*mparams))))
+    pool.close()
+    pool.join()
 

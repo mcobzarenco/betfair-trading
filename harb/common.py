@@ -27,7 +27,30 @@ def extract_horse_name(s):
         return name
 
 
-def configure_root_logger(to_stdout=True, file_out=None, level=logging.DEBUG, formatter=None):
+class MongoLoggingHandler(logging.Handler):
+    def __init__(self, coll):
+        super(MongoLoggingHandler, self).__init__()
+        self.coll = coll
+        self.logger_id = coll.find_and_modify({'last_logger_id': {'$exists': True}},
+                                              update={'$inc': {'last_logger_id': 1}})
+        if self.logger_id is None:
+            coll.insert({'last_logger_id': 0})
+            self.logger_id = 0
+        else:
+            self.logger_id = self.logger_id['last_logger_id']
+
+    def emit(self, record):
+        self.coll.insert({'logger_id': self.logger_id,
+                          'msg': record.msg,
+                          'levelname': record.levelname,
+                          'levelno': record.levelno,
+                          'name': record.name,
+                          'process': record.process,
+                          'processname': record.processName,
+                          'created': record.created}, w=0)
+
+
+def configure_root_logger(to_stdout=True, file_out=None, coll_out=None, level=logging.DEBUG, formatter=None):
     logger = logging.getLogger()
     logger.handlers = []
     logger.setLevel(level)
@@ -39,6 +62,11 @@ def configure_root_logger(to_stdout=True, file_out=None, level=logging.DEBUG, fo
         file_log.setLevel(level)
         file_log.setFormatter(formatter)
         logger.addHandler(file_log)
+    if coll_out is not None:
+        coll_log = MongoLoggingHandler(coll_out)
+        coll_log.setLevel(level)
+        coll_log.setFormatter(formatter)
+        logger.addHandler(coll_log)
     if to_stdout:
         stdout_log = logging.StreamHandler()
         stdout_log.setLevel(level)

@@ -29,10 +29,10 @@ class Strategy(object):
             user_fields = {}
 
         price = self.px_engine.price_bet(event_id, selection, amount)
-        vwao = price['odds']
+        matched_odds = price['odds']
         if 'winners' in self._curr:
             win = int(selection in self._curr['winners'])
-            pnl = win * amount * (vwao - 1) - (1 - win) * amount
+            pnl = win * amount * (matched_odds - 1) - (1 - win) * amount
         else:
             win = -1
             pnl = 0
@@ -45,7 +45,7 @@ class Strategy(object):
                'scheduled_off': self._curr['scheduled_off'],
                'selection': selection,
                'amount': amount,
-               'vwao': vwao,
+               'odds': matched_odds,
                'volume_matched': price['volume_matched'],
                'pnl': pnl,
                'selection_won': win,
@@ -91,7 +91,7 @@ class Strategy(object):
         return events
 
     def make_scorecard(self, percentile_width=60, comm=DEFAULT_COMM, jsonify=True, llik_frame=False):
-        bets_summary = ['amount', 'pnl', 'vwao']
+        bets_summary = ['amount', 'pnl', 'odds']
         bets = pd.DataFrame.from_dict(self.get_bets())
 
         user_columns = bets.filter(regex='u_.*').columns.tolist()
@@ -252,7 +252,7 @@ class Balius(Strategy):
                     #if np.abs(w[i]) > 0.01 and vwao[i] < 50.0:
                     self.bet(race['event_id'], r, w[i], {'p': p[i], 'odds': 1.0 / p[i]})
 
-        if 'ratings' in race:
+        if 'ranking' in race:
             self.hm.fit_race(race)
 
     def to_dict(self):

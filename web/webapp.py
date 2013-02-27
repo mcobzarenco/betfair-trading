@@ -15,7 +15,10 @@ SCORECARDS_COLL = 'bkt_scorecards'
 BETS_COLL = 'bkt_bets'
 EVENTS_COLL = 'bkt_events'
 
-SCORECARD_TABLE_FIELDS = {'timestamp': 1, '_id': 1, 'params': 1, 'events': 1, 'llik': 1}
+PAPER_STRATS_COLL = 'paper_strats'
+PAPER_BETS_COLL = 'paper_bets'
+
+SCORECARD_TABLE_FIELDS = {'timestamp': 1, '_id': 1, 'params': 1, 'events': 1, 'llik': 1, 'strategy_id': 1}
 SCORECARD_TABLE_ORDER = ['timestamp', '_id', 'mu', 'sigma', 'beta', 'tau', 'mean_pnl', 'diff_lik']
 
 db = MongoClient(port=33000)['betfair']
@@ -41,14 +44,16 @@ def server_static(filename="index.html"):
 @route('/')
 def index():
     json_scorecards = scorecards()
+    json_ptrading = paper_strats()
     response.set_header('Content-Type', 'text/html')
-    return template('templates/index', json_scorecards=json_scorecards)
+    return template('templates/index', json_scorecards=json_scorecards, json_ptrading=json_ptrading)
 
 
 @route('/paper')
 def paper():
+    json_strats = paper_strats()
     response.set_header('Content-Type', 'text/html')
-    return template('templates/paper')
+    return template('templates/paper', json_strats=json_strats)
 
 
 @route('/detail/<scorecard_id>')
@@ -63,6 +68,7 @@ def scorecards():
     scards = list(db[SCORECARDS_COLL].find(fields=SCORECARD_TABLE_FIELDS))
     scards = map(lambda s: {'timestamp': s['timestamp'].isoformat(),
                             '_id': str(s['_id']),
+                            'strategy_id': str(s['strategy_id']),
                             'mu': s['params']['ts']['mu'],
                             'sigma': s['params']['ts']['sigma'],
                             'beta': s['params']['ts']['beta'],
@@ -77,8 +83,7 @@ def scorecards():
 
 @route('/api/scorecard/<scorecard_id>')
 def scorecard(scorecard_id):
-    print(response.headers.items())
-    scard = db[SCORECARDS_COLL].find_one({'_id': ObjectId(scorecard_id)}, fields={'_id': 0})
+    scard = db[SCORECARDS_COLL].find_one({'_id': ObjectId(scorecard_id)}, fields={'_id': 0, 'strategy_id': 0})
     scard['scorecard_id'] = scorecard_id
     response.set_header('Content-Type', 'application/json')
     return json.dumps(scard, default=to_json)
@@ -111,6 +116,36 @@ def events(scorecard_id):
                                        fields={'_id': 0, 'scorecard_id': 0}))
     response.set_header('Content-Type', 'application/json')
     return json.dumps(events, default=to_json)
+
+
+@route('/api/paper/strategies')
+def paper_strats():
+    strats = list(db[PAPER_STRATS_COLL].find())
+    for strat in strats:
+        strat['_id'] = str(strat['_id'])
+        strat['strategy_id'] = str(strat['strategy_id'])
+    response.set_header('Content-Type', 'application/json')
+    return json.dumps(strats, default=to_json)
+
+
+@route('/api/paper/add/<strategy_id>')
+def add_paper_strat(strategy_id):
+    try:
+        db[PAPER_STRATS_COLL].insert({'strategy_id': ObjectId(strategy_id)})
+    except Exception as e:
+        return json.dumps({'success': False, 'strategy_id': strategy_id, 'msg': str(e)})
+    response.set_header('Content-Type', 'application/json')
+    return json.dumps({'success': True, 'strategy_id': strategy_id})
+
+
+@route('/api/paper/remove/<strategy_id>')
+def remove_paper_strat(strategy_id):
+    try:
+        db[PAPER_STRATS_COLL].remove({'strategy_id': ObjectId(strategy_id)})
+    except Exception as e:
+        return json.dumps({'success': False, 'strategy_id': strategy_id, 'msg': str(e)})
+    response.set_header('Content-Type', 'application/json')
+    return json.dumps({'success': True, 'strategy_id': strategy_id})
 
 
 debug(True)

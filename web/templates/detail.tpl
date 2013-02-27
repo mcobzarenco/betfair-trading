@@ -49,10 +49,14 @@
         <div class="span8" id="daily_pnl"></div>
     </div>
     <div class="row-fluid">
-        <div class="span3" id="events_series"></div>
-        <div class="span3" id="all_series"></div>
-        <div class="span3" id="backs_series"></div>
-        <div class="span3" id="lays_series"></div>
+        <div class="span4" id="events_series"></div>
+            <div class="span8">
+                <div class="row-fluid">
+                    <div class="span4" id="all_series"></div>
+                    <div class="span4" id="backs_series"></div>
+                    <div class="span4" id="lays_series"></div>
+                </div>
+            </div>
     </div>
     <div class="row-fluid">
 

@@ -6,8 +6,9 @@
 <script src="/static/libs/DataTables-1.9.4/media/js/jquery.dataTables.js"></script>
 <script src="/static/libs/dataTables-bootstrap.js"></script>
 <script type="text/javascript" >
+    var strats = {{!json_strats}};
 </script>
-<script type="text/javascript" src="/static/index.js"></script>
+<script type="text/javascript" src="/static/paper.js"></script>
 <head>
     <title>Paper Trading</title>
 </head>
@@ -25,9 +26,7 @@
             </ul>
         </div>
     </div>
-    <div class="row-fluid">
-
-    </div>
+    <table id="strats_table" class="table table-striped table-condensed"></table>
 
 </div>
 

@@ -5,8 +5,10 @@
 <script src="/static/libs/jquery-1.9.1.js"></script>
 <script src="/static/libs/DataTables-1.9.4/media/js/jquery.dataTables.js"></script>
 <script src="/static/libs/dataTables-bootstrap.js"></script>
+<script src="/static/libs/moment.min.js"></script>
 <script type="text/javascript" >
     var scorecards = {{!json_scorecards}};
+    var ptrading = {{!json_ptrading}};
 </script>
 <script type="text/javascript" src="/static/index.js"></script>
 <head>
