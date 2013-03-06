@@ -143,11 +143,15 @@ if __name__ == '__main__':
     n_backtests = reduce(lambda x, y: x * y, map(len, mparams))
     logging.info('The specified ranges of parameters yield %d different backtests.' % n_backtests)
 
-    n_processes = min(cpu_count(), n_backtests) if args.jobs < 0 else args.jobs
-    logging.info('Creating a pool with %d worker processes..' % n_processes)
-    pool = Pool(processes=n_processes)
+    packed_args = ((n_bkt, args, dict(zip(keys, values))) for n_bkt, values in enumerate(product(*mparams)))
+    if n_backtests > 1:
+        n_processes = min(cpu_count(), n_backtests) if args.jobs < 0 else args.jobs
+        logging.info('Creating a pool with %d worker processes..' % n_processes)
+        pool = Pool(processes=n_processes)
 
-    pool.map(run_backtest, ((n_bkt, args, dict(zip(keys, values))) for n_bkt, values in enumerate(product(*mparams))))
-    pool.close()
-    pool.join()
+        pool.map(run_backtest, packed_args)
+        pool.close()
+        pool.join()
+    else:
+        run_backtest(packed_args.next())
 
