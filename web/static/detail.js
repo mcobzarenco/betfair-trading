@@ -85,9 +85,9 @@ function open_row(row, bets) {
             },
 
             {
-                'sTitle': 'VWAO',
+                'sTitle': 'Matched Odds',
                 'sClass': 'series_value',
-                'mData': function(source) {return source['vwao'].toFixed(2);}
+                'mData': function(source) {return source['odds'].toFixed(2);}
             },
             {
                 'sTitle': 'Model Odds',
@@ -166,8 +166,8 @@ function open_row(row, bets) {
         },
         series: [
             {
-                name: 'VWAO',
-                data: zip(runners, bets.map(function(b) {return b['vwao']}))
+                name: 'Odds',
+                data: zip(runners, bets.map(function(b) {return b['odds']}))
             },
             {
                 name: 'Model',

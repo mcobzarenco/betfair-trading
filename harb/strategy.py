@@ -75,7 +75,7 @@ class Strategy(object):
 
     def event_breakdown(self, comm=DEFAULT_COMM, bets_dataframe=None):
         def calculate_collateral(group):
-            return np.min(risk.nwin1_bet_returns(group.amount.values, group.vwao.values))
+            return np.min(risk.nwin1_bet_returns(group.amount.values, group.odds.values))
         bets = pd.DataFrame.from_dict(self.get_bets()) if bets_dataframe is None else bets_dataframe
         events = pd.DataFrame.from_dict([{'event_id': k,
                                           'event': v['event'].iget(0),
