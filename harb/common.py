@@ -4,7 +4,6 @@ import re
 import logging
 import datetime
 
-import pymongo
 
 TO_BE_PLACED = 'TO BE PLACED'
 
@@ -22,7 +21,7 @@ def extract_horse_name(s):
         return None
     else:
         name = s[pos.start():].strip().lower()
-        if any(map(lambda x: x in name, SELECTION_BLACK_LIST)):
+        if any(map(lambda x: x == name, SELECTION_BLACK_LIST)):
             return None
         return name
 
