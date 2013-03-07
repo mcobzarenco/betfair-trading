@@ -7,6 +7,7 @@ warnings.filterwarnings(action='ignore', category=UserWarning)
 
 import re
 import logging
+from itertools import imap
 
 import dateutil
 import numpy as np
@@ -27,23 +28,41 @@ def races_from_bars(bars):
                 'event': last,
                 'course': last,
                 'scheduled_off': last,
+                'selection_id': lambda x: list(set(x.dropna())),
                 'selection': lambda x: list(set(x.dropna())),
                 'winners': lambda x: None if len(x.dropna()) == 0 else list(set(x.dropna()))}
-    races = bars.groupby(['event_id']).agg(agg_dict)
-    races.sort('scheduled_off', inplace=True)
+    races = bars.groupby(['market_id']).agg(agg_dict)
+    # races.sort('scheduled_off', inplace=True)
     return races
 
 
 def vwao_from_bars(bars):
+    def format_vwao(d):
+        d['back_prices'] = [{'amount': d['total_matched'] / 2.0,
+                             'price': d['vwao'],
+                             'depth': 1,
+                             'type': 'L'}]
+        d['lay_prices'] = [{'amount': d['total_matched'] / 2.0,
+                            'price': d['vwao'],
+                            'depth': 1,
+                            'type': 'B'}]
+        d['last_price_matched'] = d['vwao']
+        del d['vwao']
+        return d
+
     logging.info('Calculating VWAO from bars..')
     bars['notional'] = bars.volume_matched * bars.odds
 
     agg_dict = {'notional': lambda x: float(np.sum(x)),
                 'volume_matched': lambda x: float(np.sum(x)),
-                'scheduled_off': lambda x: x.iget(0)}
-    gb = bars.groupby(['event_id', 'selection']).aggregate(agg_dict)
-    gb['vwao'] = gb.notional / gb.volume_matched
-    return gb
+                'scheduled_off': lambda x: x.iget(0),
+                'selection': lambda x: x.iget(0)}
+    gb = bars.dropna(subset=['selection']).groupby(['market_id', 'selection_id']).aggregate(agg_dict) \
+        .rename(columns={'volume_matched': 'total_matched'})
+    gb['vwao'] = gb.notional / gb.total_matched
+    del gb['notional']
+
+    return imap(format_vwao, pandas_to_dicts(gb.reset_index()))
 
 
 def training_from_races(races):
@@ -69,7 +88,7 @@ def training_from_races(races):
             placed = events[events['event'] == TO_BE_PLACED]
             if len(placed) != 1:
                 logging.warning('Skipping events with the same (course, time) with no|multiple "to be placed"; '
-                                'event_id: %s' % events['event_id'].tolist())
+                                'market_id: %s' % events['market_id'].tolist())
                 continue
             placed = placed.irow(0).to_dict()
             placed['ranking'] = [int(r not in placed['winners']) + 1 for r in placed['selection']]
@@ -107,6 +126,9 @@ def upload(args):
 
         bars = pd.read_csv(fin, parse_dates=['SCHEDULED_OFF'], date_parser=parse)
         bars.columns = bars.columns.map(lambda x: x.lower())
+        bars = bars.rename(columns={'event_id': 'market_id'})
+        for col in ['market_id', 'selection_id']:
+            bars[col] = bars[col].map(str)  # Make sure dtype==str
 
         # Insert other filters here:
         bars = bars[bars.in_play == 'PE']
@@ -114,11 +136,11 @@ def upload(args):
 
         races = races_from_bars(bars).reset_index()
         train = training_from_races(races)
-        vwao = vwao_from_bars(bars).reset_index()
+        vwao = vwao_from_bars(bars)
 
-        db[args.races].insert(pandas_to_dicts(races, {'event_id': int}))
-        db[args.train].insert(convert_types(train, {'event_id': int, 'n_runners': int}))
-        db[args.vwao].insert(pandas_to_dicts(vwao, {'event_id': int}))
+        db[args.races].insert(pandas_to_dicts(races))
+        db[args.train].insert(convert_types(train, {'n_runners': int}))
+        db[args.vwao].insert(vwao)
         logging.info('Successfully uploaded to %s' % db)
     except Exception as e:
         logging.critical(e)
@@ -148,8 +170,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     configure_root_logger(args.logtty, args.logfile)
-    cpus = min(cpu_count(), len(args.files)) if args.jobs < 0 else args.jobs
+    if len(args.files) > 1:
+        cpus = min(cpu_count(), len(args.files)) if args.jobs < 0 else args.jobs
 
-    logging.info('Creating a pool with %d worker processes..' % cpus)
-    pool = Pool(processes=cpus)
-    pool.map(upload, zip([args] * len(args.files), args.files))
+        logging.info('Creating a pool with %d worker processes..' % cpus)
+        pool = Pool(processes=cpus)
+        pool.map(upload, zip([args] * len(args.files), args.files))
+    else:
+        upload((args, args.files[0]))
+
+

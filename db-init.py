@@ -29,11 +29,12 @@ db = MongoClient(HOST, PORT)[DB]
 logging.info('Initializing indexes in database %s' % db)
 
 ensure_index(db[VWAO_COLL], [('scheduled_off', 1)])
-ensure_index(db[VWAO_COLL], [('event_id', 1), ('selection', 1)], unique=True)
+ensure_index(db[VWAO_COLL], [('market_id', 1), ('selection', 1)], unique=True)
+ensure_index(db[VWAO_COLL], [('market_id', 1), ('selection_id', 1)], unique=True)
 
-ensure_index(db[RACES_COLL], [('event_id', 1)], unique=True)
+ensure_index(db[RACES_COLL], [('market_id', 1)], unique=True)
 
 ensure_index(db[TRAIN_COLL], [('scheduled_off', 1)])
-ensure_index(db[TRAIN_COLL], [('event_id', 1)], unique=True)
+ensure_index(db[TRAIN_COLL], [('market_id', 1)], unique=True)
 
 
