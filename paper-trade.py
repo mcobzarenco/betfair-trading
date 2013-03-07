@@ -25,7 +25,7 @@ def main(args):
     db = MongoClient(args.host, args.port)[args.db]
 
     now = datetime.datetime.utcnow()
-    markets = list(islice(future_markets(hours=args.hours), 0, 2))
+    markets = list(islice(future_markets(hours=args.hours), 0, 1))
     logging.info('Found %d horse races in the next %d hours' % (len(markets), args.hours))
     paper_strats = db[args.paper_strats].find()
     for s in paper_strats:
@@ -36,6 +36,7 @@ def main(args):
         bets = strat.get_bets()
         if len(bets) == 0:
             logging.info('Strategy with id=%s did not place any bets.' % s['strategy_id'])
+            continue
         for bet in bets:
             bet['strategy_id'] = s['strategy_id']
             bet['timestamp'] = now

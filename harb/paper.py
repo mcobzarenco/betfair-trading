@@ -18,7 +18,7 @@ PASSWORD = 'Antiquark_87'
 
 
 class Throtle(object):
-    def __init__(self, calls_per_min=30):
+    def __init__(self, calls_per_min=8):
         self._secs_between_calls = 60.0 / calls_per_min
         self._last_call = 0.0
 

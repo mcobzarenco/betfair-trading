@@ -184,12 +184,14 @@ class Balius(Strategy):
     def __init__(self, px_engine, horse_model=None, mu=DEFAULT_MU, sigma=DEFAULT_SIGMA, beta=DEFAULT_BETA,
                  tau=DEFAULT_TAU, draw_probability=DEFAULT_DRAW, risk_aversion=0.1, min_races=3, max_exposure=50):
         super(Balius, self).__init__(px_engine)
-        logging.debug('Balius params: mu=%.2f sigma=%.2f beta=%.2f tau=%.2f draw_prob=%.2f '
-                      'risk_aversion=%.2f min_races=%d max_exposure=%.2f' %
-                      (mu, sigma, beta, tau, draw_probability, risk_aversion, min_races, max_exposure))
         if horse_model is None:
+            logging.debug('Balius created from scratch: mu=%.2f sigma=%.2f beta=%.2f tau=%.2f draw_prob=%.2f '
+                          'risk_aversion=%.2f min_races=%d max_exposure=%.2f' %
+                          (mu, sigma, beta, tau, draw_probability, risk_aversion, min_races, max_exposure))
             self.hm = HorseModel(mu=mu, sigma=sigma, beta=beta, tau=tau, draw_probability=draw_probability)
         else:
+            logging.debug('Balius created from horse model: ts=%s risk_aversion=%.2f min_races=%d max_exposure=%.2f' %
+                          (str(horse_model._ts), risk_aversion, min_races, max_exposure))
             self.hm = horse_model
         self.risk_aversion = risk_aversion
         self.min_races = min_races
@@ -230,8 +232,8 @@ class Balius(Strategy):
             rel = p / implied - 1.0
             t = 0.1
 
-            p[rel < -t] = implied[rel < -t] * 0.8
-            p[rel > t] = implied[rel > t] * 1.2
+            p[rel < -t] = implied[rel < -t] * 0.95
+            p[rel > t] = implied[rel > t] * 1.05
 
             #print(p)
             # ps = (self.hm.get_runs(runners) * p + 4 * q) / (4 + self.hm.get_runs(runners))
