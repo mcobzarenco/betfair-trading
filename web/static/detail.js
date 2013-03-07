@@ -308,7 +308,7 @@ $(function() {
                 'sTitle':''
             },
             {
-                'sTitle': 'Scheduled Off',
+                'sTitle': 'Scheduled Off (UTC)',
                 'mData': function(source, type, val) {
                     if(typeof type === 'undefined') {
                         source.timestamp = moment(source['scheduled_off']);
