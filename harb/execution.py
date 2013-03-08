@@ -82,48 +82,15 @@ class HistoricalExecutionEngine(ExecutionEngine):
                 'selection': price['selection_id'],
                 'selection_id': price['selection_id'],
                 'amount': bet['amount'],
-                'odds': price['last_price_matc'],
-                                  'volume_matched': price['volume_matched'],
-                                  'pnl': pnl,
-                                  'selection_won': win,
-                                  'winners': self._curr['winners'] if 'winners' in self._curr else []})
-
+                'odds': price['last_price_matched'],
+                'total_matched': price['total_matched']
+            })
 
     def get_mu_bets(self, market_id=None, consolidate=True):
         return self._matched, self._unmatched
 
     def cancel_unmatched(self, market_id, selection_id=None):
         self._unmatched = []
-
-    def bet(self, event_id, selection, amount, user_fields=None):
-        assert event_id == self._curr['event_id']
-        if user_fields is None:
-            user_fields = {}
-
-        price = self.px_engine.price_bet(event_id, selection, amount)
-        matched_odds = price['odds']
-        if 'winners' in self._curr:
-            win = int(selection in self._curr['winners'])
-            pnl = win * amount * (matched_odds - 1) - (1 - win) * amount
-        else:
-            win = -1
-            pnl = 0
-
-        bet = {'event_id': event_id,
-               'country': self._curr['country'],
-               'event': self._curr['event'],
-               'course': self._curr['course'],
-               'n_runners': self._curr['n_runners'],
-               'scheduled_off': self._curr['scheduled_off'],
-               'selection': selection,
-               'amount': amount,
-               'odds': matched_odds,
-               'volume_matched': price['volume_matched'],
-               'pnl': pnl,
-               'selection_won': win,
-               'winners': self._curr['winners'] if 'winners' in self._curr else []}
-        bet.update(map(lambda x: ('u_' + x[0], x[1]), user_fields.items()))
-        self._bets.append(bet)
 
 
 class PaperExecutionEngine(object):
