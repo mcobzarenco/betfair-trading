@@ -5,16 +5,18 @@ import warnings
 warnings.filterwarnings(action='ignore', category=FutureWarning)
 warnings.filterwarnings(action='ignore', category=UserWarning)
 
-import re
 import logging
 from itertools import imap
 
 import dateutil
 import numpy as np
 import pandas as pd
+from pymongo import MongoClient
+from pymongo.errors import DuplicateKeyError
+
 
 from harb.common import configure_root_logger, TO_BE_PLACED, convert_types, \
-    pandas_to_dicts, SELECTION_BLACK_LIST, extract_horse_name
+    pandas_to_dicts, SELECTION_BLACK_LIST, extract_horse_name, get_first
 
 
 def races_from_bars(bars):
@@ -23,11 +25,10 @@ def races_from_bars(bars):
     win_ix = bars['win_flag'] == 1
     bars['winners'].ix[win_ix] = bars['selection'].ix[win_ix]
 
-    last = lambda x: x.iget(0)
-    agg_dict = {'country': last,
-                'event': last,
-                'course': last,
-                'scheduled_off': last,
+    agg_dict = {'country': get_first,
+                'event': get_first,
+                'course': get_first,
+                'scheduled_off': get_first,
                 'selection_id': lambda x: list(set(x.dropna())),
                 'selection': lambda x: list(set(x.dropna())),
                 'winners': lambda x: None if len(x.dropna()) == 0 else list(set(x.dropna()))}
@@ -53,10 +54,13 @@ def vwao_from_bars(bars):
     logging.info('Calculating VWAO from bars..')
     bars['notional'] = bars.volume_matched * bars.odds
 
-    agg_dict = {'notional': lambda x: float(np.sum(x)),
+    agg_dict = {'country': get_first,
+                'event': get_first,
+                'course': get_first,
+                'scheduled_off': get_first,
+                'notional': lambda x: float(np.sum(x)),
                 'volume_matched': lambda x: float(np.sum(x)),
-                'scheduled_off': lambda x: x.iget(0),
-                'selection': lambda x: x.iget(0)}
+                'selection': get_first}
     gb = bars.dropna(subset=['selection']).groupby(['market_id', 'selection_id']).aggregate(agg_dict) \
         .rename(columns={'volume_matched': 'total_matched'})
     gb['vwao'] = gb.notional / gb.total_matched
@@ -113,7 +117,7 @@ def upload(args):
         directory, file_name = split(path)
         file_part, ext = splitext(file_name)
 
-        formatter = logging.Formatter('%(asctime)s - ' + file_name +  ' - %(levelname)s: %(message)s')
+        formatter = logging.Formatter('%(asctime)s - ' + file_name + ' - %(levelname)s: %(message)s')
         configure_root_logger(args.logtty, args.logfile, formatter=formatter)
         db = MongoClient(args.host, args.port)[args.db]
 
@@ -138,9 +142,24 @@ def upload(args):
         train = training_from_races(races)
         vwao = vwao_from_bars(bars)
 
-        db[args.races].insert(pandas_to_dicts(races))
-        db[args.train].insert(convert_types(train, {'n_runners': int}))
-        db[args.vwao].insert(vwao)
+        try:
+            db[args.races].insert(pandas_to_dicts(races), continue_on_error=True)
+        except DuplicateKeyError as e:
+            logging.error('Some duplicate keys in %s; If this is a surprise, ABORT! msg=%s' %
+                          (db[args.races], e))
+
+        try:
+            db[args.train].insert(convert_types(train, {'n_runners': int}), continue_on_error=True)
+        except DuplicateKeyError as e:
+            logging.error('Some duplicate keys in %s; If this is a surprise, ABORT! msg=%s' %
+                          (db[args.train], e))
+
+        try:
+            db[args.vwao].insert(vwao, continue_on_error=True)
+        except DuplicateKeyError as e:
+            logging.error('Some duplicate keys in %s; If this is a surprise, ABORT! msg=%s' %
+                          (db[args.vwao], e))
+
         logging.info('Successfully uploaded to %s' % db)
     except Exception as e:
         logging.critical(e)
@@ -152,7 +171,6 @@ if __name__ == '__main__':
     from os.path import split, splitext
     import argparse
     from multiprocessing import Pool, cpu_count
-    from pymongo import MongoClient
 
     parser = argparse.ArgumentParser(description='Uploads Betfair historical data to a MongoDB database')
     parser.add_argument('files', metavar='FILES', type=str, nargs='+', help='zip/csv/pd files to upload')
@@ -178,5 +196,4 @@ if __name__ == '__main__':
         pool.map(upload, zip([args] * len(args.files), args.files))
     else:
         upload((args, args.files[0]))
-
 

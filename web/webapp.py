@@ -7,13 +7,10 @@ from bson.objectid import ObjectId
 import pandas as pd
 
 from bottle import route, run, template, debug, static_file, response
+from backtest import SCORECARDS_COLL, STRATEGIES_COLL, BETS_COLL, MARKETS_COLL
 
 
 VWAO_COLL = 'vwao'
-
-SCORECARDS_COLL = 'bkt_scorecards'
-BETS_COLL = 'bkt_bets'
-EVENTS_COLL = 'bkt_events'
 
 PAPER_STRATS_COLL = 'paper_strats'
 PAPER_BETS_COLL = 'paper_bets'

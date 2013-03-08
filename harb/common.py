@@ -11,8 +11,12 @@ SELECTION_BLACK_LIST = [
     'yes',
     'no',
     'lengths inclusive',
-    'any other individual jockey'
+    'any other individual jockey',
+    'winners'
 ]
+
+
+get_first = lambda x: x.iget(0)
 
 
 def extract_horse_name(s):

@@ -153,11 +153,10 @@ class HorseModel(object):
         return hm
 
 
+def get_implied_from_odds(odds):
+    p = 1.0 / odds
+    return p / np.sum(p)
 
-    #ms = c.get_all_markets(hours=24, countries=['GBR'])
-    #predicates = lambda x: x['menu_path'].startswith('\\Horse Racing\\GB') and\
-    #                       x['market_name'].lower() == 'to be placed'
-    #len(filter(predicates, ms))
 
 # p = np.r_[.1, .6, .3]
 # q = np.r_[.1, .5, .4]

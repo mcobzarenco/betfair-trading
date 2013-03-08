@@ -17,9 +17,11 @@ import numpy as np
 import pandas as pd
 from pymongo import MongoClient
 
+from harb import strategy
+from harb.execution import HistoricalExecutionService
+from harb.scorecard import market_breakdown, make_scorecard, price_historical_bets
 from harb.analytics import DEFAULT_MU, DEFAULT_SIGMA, DEFAULT_BETA, DEFAULT_TAU, DEFAULT_DRAW
-from harb.strategy import Balius, VWAOPricer
-from harb.common import configure_root_logger, convert_types, pandas_to_dicts
+from harb.common import configure_root_logger,  pandas_to_dicts
 
 
 DEFAULT_NUM = 10
@@ -27,7 +29,7 @@ DEFAULT_NUM = 10
 STRATEGIES_COLL = 'bkt_strategies'
 SCORECARDS_COLL = 'bkt_scorecards'
 BETS_COLL = 'bkt_bets'
-EVENTS_COLL = 'bkt_events'
+MARKETS_COLL = 'bkt_markets'
 
 
 def parse_date(d):
@@ -60,33 +62,36 @@ def run_backtest(context):
         where_clause['country'] = country
     sorted_races = db[args.train].find(where_clause, sort=[('scheduled_off', 1)], timeout=False)
 
-    px_engine = VWAOPricer(db, args.vwao)
-    strat = Balius(px_engine, mu=mparams['mu'], sigma=mparams['sigma'], beta=mparams['beta'], tau=mparams['tau'],
-                   draw_probability=mparams['draw_prob'], risk_aversion=mparams['risk_aversion'],
-                   min_races=mparams['min_races'], max_exposure=mparams['max_exposure'])
+    exec_services = HistoricalExecutionService(db)
+    strat = strategy.Balius(mu=mparams['mu'], sigma=mparams['sigma'], beta=mparams['beta'], tau=mparams['tau'],
+                            draw_probability=mparams['draw_prob'], risk_aversion=mparams['risk_aversion'],
+                            min_races=mparams['min_races'], max_exposure=mparams['max_exposure'])
     st = time.clock()
-    strat.run(sorted_races)
+    strategy.backtest(exec_services, strat, sorted_races)
     en = time.clock()
     logging.info('Backtest finished in %.2f seconds' % (en - st))
 
-    strat_id = db[STRATEGIES_COLL].insert(strat.to_dict())
+    strat_dict = strat.to_dict()
+    strat_id = db[STRATEGIES_COLL].insert(strat_dict)
     logging.info('Strategy serialised to %s with id=%s' % (db[STRATEGIES_COLL], strat_id))
 
-    scorecard = strat.make_scorecard()
+    bets = price_historical_bets(db, exec_services.get_mu_bets()[0])
+    scorecard = make_scorecard(bets)
     now = datetime.datetime.utcnow()
-    scorecard['timestamp'] = now
-    scorecard['run_seconds'] = en - st
-    scorecard['strategy_id'] = strat_id
+    scorecard.update({'params': {'ts': strat_dict['hm']['ts']},
+                      'timestamp': now,
+                      'run_seconds': en - st,
+                      'strategy_id': strat_id})
     scorecard_id = db[SCORECARDS_COLL].insert(scorecard)
     logging.info('Scorecard inserted in %s with id=%s' % (db[SCORECARDS_COLL], scorecard_id))
 
-    db[BETS_COLL].insert(add_scorecard_id_to_dicts(scorecard_id, strat.get_bets()))
+    db[BETS_COLL].insert(add_scorecard_id_to_dicts(scorecard_id, bets))
     logging.info('Associated bets inserted in %s' % db[BETS_COLL])
 
-    events = strat.event_breakdown().reset_index()
-    events = pandas_to_dicts(events, {'event_id': int, 'n_runners': int})
-    db[EVENTS_COLL].insert(add_scorecard_id_to_dicts(scorecard_id, events))
-    logging.info('Associated event breakdown inserted in %s' % db[EVENTS_COLL])
+    markets = market_breakdown(bets).reset_index()
+    markets = pandas_to_dicts(markets, {'n_runners': int})
+    db[MARKETS_COLL].insert(add_scorecard_id_to_dicts(scorecard_id, markets))
+    logging.info('Associated market breakdown inserted in %s' % db[MARKETS_COLL])
 
 
 def arg_linspace(s):
