@@ -145,20 +145,17 @@ def upload(args):
         try:
             db[args.races].insert(pandas_to_dicts(races), continue_on_error=True)
         except DuplicateKeyError as e:
-            logging.error('Some duplicate keys in %s; If this is a surprise, ABORT! msg=%s' %
-                          (db[args.races], e))
+            logging.error('Some duplicate keys in %s; If this is a surprise, ABORT! msg=%s' % (db[args.races], e))
 
         try:
             db[args.train].insert(convert_types(train, {'n_runners': int}), continue_on_error=True)
         except DuplicateKeyError as e:
-            logging.error('Some duplicate keys in %s; If this is a surprise, ABORT! msg=%s' %
-                          (db[args.train], e))
+            logging.error('Some duplicate keys in %s; If this is a surprise, ABORT! msg=%s' % (db[args.train], e))
 
         try:
             db[args.vwao].insert(vwao, continue_on_error=True)
         except DuplicateKeyError as e:
-            logging.error('Some duplicate keys in %s; If this is a surprise, ABORT! msg=%s' %
-                          (db[args.vwao], e))
+            logging.error('Some duplicate keys in %s; If this is a surprise, ABORT! msg=%s' % (db[args.vwao], e))
 
         logging.info('Successfully uploaded to %s' % db)
     except Exception as e:
