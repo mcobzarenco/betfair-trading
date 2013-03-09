@@ -14,6 +14,7 @@ from analytics import HorseModel, DEFAULT_MU, DEFAULT_SIGMA, DEFAULT_BETA, DEFAU
     get_implied_from_odds
 import risk
 
+
 WARN_LIQUIDITY = 0.2
 DEFAULT_COMM = 0.95
 LOGGING_NRACES = 500
@@ -76,8 +77,13 @@ class Balius(object):
             else:
                 logging.info('Betting on market_id=%s: |exposure|=%.2f collateral=%.2f' %
                              (race['market_id'], np.sum(np.abs(w)), np.min(returns)))
-                bets = ({'selection_id': prices[r]['selection_id'], 'amount': w[i], 'data': {'p': p[i]}}
-                        for i, r in enumerate(runners))
+                bets = ({'selection_id': prices[r]['selection_id'],
+                         'amount': w[i],
+                         'data': {
+                             'p': p[i],
+                             'implied': implied[i]
+                         }
+                        } for i, r in enumerate(runners))
                 ex.place_exchange_bets(race['market_id'], bets)
 
         if 'ranking' in race:

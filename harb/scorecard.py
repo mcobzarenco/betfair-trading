@@ -57,9 +57,8 @@ def make_scorecard(bets, percentile_width=60, comm=DEFAULT_COMM, jsonify=True, l
 
     user_columns = bets.filter(regex='data_.*').columns.tolist()
     llik = bets.groupby(['market_id', 'selection'])[['selection_won', 'n_runners'] + user_columns].last()
-    #llik['llik_implied'] = np.log(llik['implied'][llik['selection_won'] == 1])
-    #llik['llik_implied'].fillna(0.0, inplace=True)
-    llik['llik_implied'] = 0.0
+    llik['llik_model'] = np.log(llik['data_implied'][llik['selection_won'] == 1])
+    llik['llik_model'].fillna(0.0, inplace=True)
     llik['llik_uniform'] = np.log(1.0 / bets['n_runners'])
     llik['llik_model'] = np.log(llik['data_p'][llik['selection_won'] == 1])
     llik['llik_model'].fillna(0.0, inplace=True)
