@@ -17,28 +17,6 @@ USERNAME = 'aristotle137'
 PASSWORD = 'Antiquark_87'
 
 
-class Throtle(object):
-    def __init__(self, calls_per_min=8):
-        self._secs_between_calls = 60.0 / calls_per_min
-        self._last_call = 0.0
-
-    def __call__(self, f, args=None, kwargs=None):
-        if args is None:
-            args = []
-        if kwargs is None:
-            kwargs = {}
-        diff = time.time() - self._last_call
-        logging.debug('Last call %.2f seconds ago' % diff)
-        if diff < self._secs_between_calls:
-            logging.debug('Sleeping for %.2f seconds' % (self._secs_between_calls - diff))
-            time.sleep(self._secs_between_calls - diff)
-        self._last_call = time.time()
-        return f(*args, **kwargs)
-
-
-throtle = Throtle()
-
-
 class MidPricer(PricingEngine):
     def __init__(self, username=USERNAME, password=PASSWORD):
         self.client = API()

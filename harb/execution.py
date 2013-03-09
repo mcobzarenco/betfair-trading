@@ -77,3 +77,26 @@ class PaperExecutionService(ExecutionService):
 
 class BetfairExecutionEngine(ExecutionService):
     pass
+
+
+def trade_strategy(coll, strategy_id, trade_switch):
+    curr = coll.find({'strategy_id': strategy_id}).sort([('timestamp', -1)])
+    count = curr.count()
+    last_trade_switch = curr.next()['trade_switch'] if count > 0 else (not trade_switch)
+    if trade_switch == last_trade_switch or (not trade_switch and count == 0):
+        if trade_switch:
+            logging.error('Strategy id="%s" is already being traded (coll=%s). Ignoring start signal' %
+                          (str(strategy_id), coll))
+        else:
+            logging.error('Strategy id="%s" is not currently being traded (coll=%s). Ignoring stop signal' %
+                          (str(strategy_id), coll))
+        return
+    else:
+        logging.info('Setting trade switch to %s for strategy with id="%s" (coll=%s)' %
+                     (trade_switch, str(strategy_id), coll))
+        coll.insert({
+            'strategy_id': strategy_id,
+            'timestamp': datetime.datetime.utcnow(),
+            'trade_switch': trade_switch
+        })
+
