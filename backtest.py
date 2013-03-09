@@ -78,7 +78,7 @@ def run_backtest(context):
     bets = price_historical_bets(db, exec_services.get_mu_bets()[0])
     scorecard = make_scorecard(bets)
     now = datetime.datetime.utcnow()
-    scorecard.update({'params': {'ts': strat_dict['hm']['ts']},
+    scorecard.update({'params': {'ts': strat_dict['hm']['ts'], 'risk': strat_dict['risk']},
                       'timestamp': now,
                       'run_seconds': en - st,
                       'strategy_id': strat_id})
