@@ -26,11 +26,6 @@ from harb.common import configure_root_logger,  pandas_to_dicts
 
 DEFAULT_NUM = 10
 
-STRATEGIES_COLL = 'bkt_strategies'
-SCORECARDS_COLL = 'bkt_scorecards'
-BETS_COLL = 'bkt_bets'
-MARKETS_COLL = 'bkt_markets'
-
 
 def parse_date(d):
     return dateutil.parser.parse(d, dayfirst=True) if d is not None else None

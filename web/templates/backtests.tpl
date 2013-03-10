@@ -8,28 +8,26 @@
 <script src="/static/libs/dataTables-bootstrap.js"></script>
 <script src="/static/libs/moment.min.js"></script>
 <script type="text/javascript" >
-    var strats = {{!json_strats}};
+    var scorecards = {{!json_scorecards}};
+    var ptrading = {{!json_ptrading}};
 </script>
-<script type="text/javascript" src="/static/paper.js"></script>
+<script type="text/javascript" src="/static/backtests.js"></script>
 <head>
-    <title>Paper Trading</title>
+    <title>Backtests</title>
 </head>
 <body>
 <div class="container-fluid" style="width: 90%; margin-left: auto; margin-right: auto;">
     <div class="row-fluid">
         <div class="span12" style="padding-top: 10px">
             <ul class="nav nav-pills">
-                <li>
-                    <a href="/backtests/summary">Backtests</a>
-                </li>
                 <li class="active">
-                    <a href="#">Paper Trading</a>
+                    <a href="#">Backtests</a>
                 </li>
+                <li><a href="/paper/summary">Paper Trading</a></li>
             </ul>
         </div>
     </div>
-    <table id="strats_table" class="table table-striped table-condensed"></table>
-
+    <table id="scorecards_table" class="table table-striped table-condensed"></table>
 </div>
 
 </body>

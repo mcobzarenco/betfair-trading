@@ -62,7 +62,7 @@ class Balius(object):
             p = self.hm.pwin_trapz(runners)
 
             rel = p / implied - 1.0
-            t = 0.1
+            t = 0.05
 
             p[rel < -t] = implied[rel < -t] * 0.95
             p[rel > t] = implied[rel > t] * 1.05

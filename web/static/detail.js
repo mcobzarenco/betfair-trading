@@ -92,12 +92,12 @@ function open_row(row, bets) {
             {
                 'sTitle': 'Model Odds',
                 'sClass': 'series_value',
-                'mData': function(source) {return source['u_odds'].toFixed(2);}
+                'mData': function(source) {return (1.0 / source['data']['p']).toFixed(2);}
             },
             {
-                'sTitle': 'Volume Matched',
+                'sTitle': 'Total Matched',
                 'sClass': 'series_value',
-                'mData': function(source) {return source['volume_matched'].toFixed(2);}
+                'mData': function(source) {return source['total_matched'].toFixed(2);}
             },
             {
                 'sTitle': 'Won',
@@ -171,7 +171,7 @@ function open_row(row, bets) {
             },
             {
                 name: 'Model',
-                data: zip(runners, bets.map(function(b) {return b['u_odds']}))
+                data: zip(runners, bets.map(function(b) {return 1.0 / b['data']['p']}))
             }
         ]
     });
@@ -186,7 +186,7 @@ function attach_accordion_handlers() {
             $('img', this).attr('src', IMAGES_ROOT + "details_close.png");
             var row_data = events_table.fnGetData(parent);
             $.ajax({
-                'url': '/api/bets/' + scorecard['scorecard_id'] + '/' + row_data['event_id'],
+                'url': '/backtests/scorecards/' + scorecard['scorecard_id'] + '/bets/' + row_data['market_id'],
                 'success': function(bets) {open_row(parent, bets);}
             });
         }
@@ -298,7 +298,7 @@ $(function() {
     events_table = $('#events_table').dataTable({
         'sDom': "<'row-fluid'<'span6'l><'span6'f>r>t<'row-fluid'<'span6'i><'span6'p>>",
         'bProcessing': true,
-        'sAjaxSource': '/api/events/' + scorecard['scorecard_id'],
+        'sAjaxSource': '/backtests/scorecards/' + scorecard['scorecard_id'] + '/markets',
         'sAjaxDataProp': '',
         'aoColumns': [
             {
@@ -321,8 +321,8 @@ $(function() {
                 }
             },
             {
-                'sTitle': 'Event ID',
-                'mData': 'event_id'
+                'sTitle': 'Market ID',
+                'mData': 'market_id'
             },
             {
                 'sTitle': 'Event',

@@ -26,7 +26,7 @@
                     <a href="/">Backtests</a>
                 </li>
                 <li>
-                    <a href="/paper">Paper Trading</a>
+                    <a href="/paper/summary">Paper Trading</a>
                 </li>
             </ul>
         </div>

@@ -14,11 +14,6 @@ function scorecard_table(scorecard) {
     $('.dataframe').addClass('table');
 }
 
-
-function to(data, a, b) {
-    var i = 0;
-}
-
 function update_ptrading(ptrading_new) {
     ptrading = ptrading_new.map(function(s) {return s.strategy_id;});
 }
@@ -28,23 +23,23 @@ function paper_trade() {
     var $this = $(this);
     if($.inArray(strat_id, ptrading) == -1) {
         $.ajax({
-            'url': '/api/paper/add/' + strat_id,
+            'url': '/paper/add/' + strat_id,
             'success': function() {
                 $this.removeClass('ptrade-off').addClass('ptrade-on btn-success').html(PTRADE_ON_TEXT);
                 $.ajax({
-                    url: '/api/paper/strategies',
+                    url: '/paper/strategies/trading',
                     success: update_ptrading
                 });
             }
         });
     } else {
         $.ajax({
-            'url': '/api/paper/remove/' + strat_id,
+            'url': '/paper/remove/' + strat_id,
             'success': function() {
                 $this.removeClass('ptrade-on').removeClass('btn-success').removeClass('btn-danger')
                     .addClass('ptrade-off').html(PTRADE_OFF_TEXT);
                 $.ajax({
-                    url: '/api/paper/strategies',
+                    url: '/paper/strategies/trading',
                     success: update_ptrading
                 });
             }
@@ -63,7 +58,7 @@ $(function() {
         'sAjaxDataProp': '',
         'aoColumns': [
             {
-                'sTitle': 'Timestamp',
+                'sTitle': 'Timestamp (UTC)',
                 'mData': function(source, type, val) {
                     if(typeof type === 'undefined') {
                         source.timestamp = moment(source['timestamp']);
@@ -92,21 +87,22 @@ $(function() {
                 }
             },
             {
-                'sTitle': 'ID',
-                'mData': function(source, type, val) {
+                sTitle: 'Strategy ID',
+                mData: function(source, type, val) {
                     if (type === 'set') {
-                        source.id_link = '<a href="detail/' + source._id + '">' + source._id + '</a>';
-                        return source._id;
+                        source.scorecard_link = '<a href="detail/' + source.id + '">' + source.strategy_id + '</a>';
+                        return source.id;
                     }
                     else if (type === 'display') {
-                        return source.id_link;
+                        return source.scorecard_link;
                     }
                     else if (type === 'filter') {
-                        return source._id;
+                        return source.id;
                     }
                     // 'sort', 'type' and undefined all just use the integer
-                    return source._id;
-                }
+                    return source.id;
+                },
+                sClass: 'pre',
             },
             {
                 'sTitle': 'mu',

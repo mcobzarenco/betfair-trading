@@ -57,11 +57,10 @@ def make_scorecard(bets, percentile_width=60, comm=DEFAULT_COMM, jsonify=True, l
 
     user_columns = bets.filter(regex='data_.*').columns.tolist()
     llik = bets.groupby(['market_id', 'selection'])[['selection_won', 'n_runners'] + user_columns].last()
-    llik['llik_model'] = np.log(llik['data_implied'][llik['selection_won'] == 1])
-    llik['llik_model'].fillna(0.0, inplace=True)
-    llik['llik_uniform'] = np.log(1.0 / bets['n_runners'])
+    llik['llik_implied'] = np.log(llik['data_implied'][llik['selection_won'] == 1])
+    llik['llik_uniform'] = np.log(1.0 / llik['n_runners'][llik['selection_won'] == 1])
     llik['llik_model'] = np.log(llik['data_p'][llik['selection_won'] == 1])
-    llik['llik_model'].fillna(0.0, inplace=True)
+    llik.fillna(0.0, inplace=True)
 
     markets = market_breakdown(bets, comm)
 
@@ -203,27 +202,3 @@ class VWAOPricer(PricingEngine):
         return vwao
 
 
-
-#@staticmethod
-
-
-
-def make_scorecard_balius(self, percentile_width=60, comm=DEFAULT_COMM, jsonify=True, llik_frame=False):
-    scorecard = super(Balius, self).make_scorecard(percentile_width, comm, jsonify, True)
-    llik = scorecard['_frames']['llik']
-
-    llik['llik_model'] = np.log(llik['u_p'][llik['selection_won'] == 1])
-    llik['llik_model'].fillna(0.0, inplace=True)
-    scorecard['llik']['model'] = llik['llik_model'].sum()
-    scorecard['params'] = {
-        'ts': self.hm.get_params(),
-        'risk': {
-            'risk_aversion': self.risk_aversion,
-            'min_races': self.min_races,
-            'max_exposure': self.max_expsoure
-        }
-    }
-
-    if not llik_frame:
-        del scorecard['_frames']
-    return scorecard

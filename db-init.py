@@ -4,15 +4,12 @@ import logging
 from pymongo import MongoClient
 
 from harb.common import configure_root_logger
+from harb.db import VWAO_COLL, RACES_COLL, TRAIN_COLL
 
 
 HOST = 'localhost'
 PORT = 33000
 DB = 'betfair'
-
-VWAO_COLL = 'vwao'
-RACES_COLL = 'races'
-TRAIN_COLL = 'train'
 
 
 def ensure_index(collection, index, unique=False):

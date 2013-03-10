@@ -7,20 +7,29 @@ $(function() {
         'sAjaxDataProp': '',
         'aoColumns': [
             {
-                'sTitle': 'Strategy ID',
-                'mData': function(source, type, val) {
-                    if (type === 'set') {
-                        source.id_link = '<a href="paper/detail/' + source.strategy_id + '">' + source.strategy_id + '</a>';
-                        return source._id;
+                sTitle: 'Strategy ID',
+                mData: function(source) {
+                    return source['strategy_id'] + ' [<a href="bets/' + source['strategy_id'] + '">bets</a>]'
+                },
+                sClass: 'pre'
+            },
+            {
+                sTitle: 'First Traded',
+                mData: function(source, type, val) {
+                    if (type == 'display') {
+                        return moment(source['first_traded']).fromNow();
                     }
-                    else if (type === 'display') {
-                        return source.id_link;
-                    }
-                    else if (type === 'filter') {
-                        return source.strategy_id;
-                    }
-                    // 'sort', 'type' and undefined all just use the integer
-                    return source.strategy_id;
+                    return moment(source['first_traded']);
+                }
+            },
+            {
+                sTitle: 'Last Traded',
+                mData: function(source, type, val) {
+                    if (source['last_traded'] == null)
+                        return null
+                    if (type == 'display')
+                        return moment(source['last_traded']).fromNow();
+                    return moment(source['last_traded']);
                 }
             }
         ],
