@@ -9,7 +9,7 @@ $(function() {
             {
                 sTitle: 'Strategy ID',
                 mData: function(source) {
-                    return source['strategy_id'] + ' [<a href="bets/' + source['strategy_id'] + '">bets</a>]'
+                    return source['strategy_id'] + ' [<a href="summary/' + source['strategy_id'] + '/bets">bets</a>]'
                 },
                 sClass: 'pre'
             },

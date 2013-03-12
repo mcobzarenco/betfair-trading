@@ -143,7 +143,7 @@ from time import sleep, time
 from functools import wraps
 
 
-CALLS_PER_MIN = 8
+CALLS_PER_MIN = 60
 
 
 class Throtller(object):

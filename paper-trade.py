@@ -14,10 +14,9 @@ from itertools import islice
 from pymongo import MongoClient
 from bson import ObjectId
 
-
-from harb.paper import future_markets, MidPricer
-from harb.strategy import Balius
+from harb.strategy import Balius, backtest
 from harb.common import configure_root_logger
+from harb.execution import get_traded_strategies, PaperExecutionService, get_future_markets
 from harb.db import BKT_STRATEGIES, PAPER_TRADING, PAPER_BETS
 
 
@@ -25,15 +24,16 @@ def main(args):
     db = MongoClient(args.host, args.port)[args.db]
 
     now = datetime.datetime.utcnow()
-    markets = list(islice(future_markets(hours=args.hours), 0, 1))
+    markets = list(islice(get_future_markets(hours=args.hours), 0, 1))
     logging.info('Found %d horse races in the next %d hours' % (len(markets), args.hours))
-    paper_strats = db[args.paper_strats].find()
-    for s in paper_strats:
-        strat = Balius.from_dict(MidPricer(), db[BKT_STRATEGIES].find_one({'_id': s['strategy_id']}))
+    strats = get_traded_strategies(db[args.paper_trading], True)
+    for s in strats:
+        strat = Balius.from_dict(db[BKT_STRATEGIES].find_one({'_id': s['strategy_id']}))
         strat.max_expsoure = 1e6
-        strat.run(markets)
+        ex = PaperExecutionService()
+        backtest(ex, strat, markets)
 
-        bets = strat.get_bets()
+        bets = ex.get_mu_bets()[0]
         if len(bets) == 0:
             logging.info('Strategy with id=%s did not place any bets.' % s['strategy_id'])
             continue
@@ -52,7 +52,7 @@ parser.add_argument('--paper-trading', type=str, action='store', default=PAPER_T
                     help='collection with backtests to paper trade (default=%s)' % PAPER_TRADING)
 parser.add_argument('--paper-bets', type=str, action='store', default=PAPER_BETS,
                     help='collection with backtests to paper trade (default=%s)' % PAPER_BETS)
-parser.add_argument('--hours', type=int, action='store', default=10,
+parser.add_argument('--hours', type=int, action='store', default=40,
                     help='for how many hours to look for future races')
 parser.add_argument('--logfile', type=str, action='store', default=None, help='specifies what log file to use')
 parser.add_argument('--logtty', help='prints logging info to the terminal', action='store_true')

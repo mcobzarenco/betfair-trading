@@ -2,14 +2,13 @@ from __future__ import print_function, division
 
 import logging
 import datetime
-import time
-from collections import defaultdict
-from itertools import chain, imap, product
+from itertools import ifilter
 
 import dateutil
 from pymongo import ASCENDING, DESCENDING
-from betfair import API_T
+from bson import ObjectId
 
+from betfair import API_T
 from common import extract_horse_name
 
 
@@ -85,19 +84,19 @@ class HistoricalExecutionService(VirtualExecutionService):
 class PaperExecutionService(VirtualExecutionService):
     def __init__(self, username=USERNAME, password=PASSWORD):
         super(PaperExecutionService, self).__init__()
-        self.c = API_T()
-        self.c.login(username, password)
+        self.client = API_T()
+        self.client.login(username, password)
         self._static = {}
 
     def get_market_prices(self, market_id):
         if market_id not in self._static:
-            static = self.c.get_market(market_id)
+            static = self.client.get_market(market_id)
             self._static[market_id] = static
         else:
             static = self._static[market_id]
         id_to_name = dict(map(lambda x: (x['selection_id'], extract_horse_name(x['name'])), static['runners']))
 
-        raw = self.c.get_market_prices(market_id)
+        raw = self.client.get_market_prices(market_id)
         prices = raw['runners']
         scheduled_off = dateutil.parser.parse(static['marketTime']).replace(tzinfo=None)
         for px in prices:
@@ -115,6 +114,8 @@ class BetfairExecutionService(ExecutionService):
 
 
 def trade_strategy(coll, strategy_id, trade_switch):
+    if isinstance(strategy_id, str):
+        strategy_id = ObjectId(strategy_id)
     curr = coll.find({'strategy_id': strategy_id}).sort([('timestamp', -1)])
     count = curr.count()
     last_trade_switch = curr.next()['trade_switch'] if count > 0 else (not trade_switch)
@@ -150,3 +151,44 @@ def get_traded_strategies(coll, currently_trading=False):
                             'first_traded': start['timestamp'],
                             'last_traded': last_traded})
     return summary
+
+
+def get_future_markets(menu_prefix='\\Horse Racing\\GB', hours=24):
+    client = API_T()
+    client.login(USERNAME, PASSWORD)
+    now = datetime.datetime.utcnow()
+    before_date = now + datetime.timedelta(hours=hours)
+
+    markets = client.get_all_markets(hours=24)
+    logging.info('Getting all markets..')
+    if isinstance(markets, str):
+        raise RuntimeError(markets)
+    markets = ifilter(lambda x: before_date > x['event_date'] > now and x['menu_path'].startswith(menu_prefix),
+                      markets)
+    for m in markets:
+        detailed = client.get_market(m['market_id'])
+        if isinstance(detailed, str):
+            raise RuntimeError(detailed)
+
+        runners, selection_ids = [], []
+        invalid_selection = False
+        for r in detailed['runners']:
+            horse_name = extract_horse_name(r['name'])
+            if horse_name is None:
+                logging.warning('Skipping market with id=%s as selection="%s" is not a horse name.' %
+                                (m['market_id'], r['name']))
+                invalid_selection = True
+                break
+            runners.append(horse_name)
+            selection_ids.append(r['selection_id'])
+
+        if not invalid_selection:
+            yield {
+                'country': detailed['countryISO3'],
+                'course': m['menu_path'].split('\\')[-1],
+                'event': m['market_name'],
+                'market_id': m['market_id'],
+                'scheduled_off': dateutil.parser.parse(detailed['marketTime']).replace(tzinfo=None),
+                'n_runners': len(runners),
+                'selection': runners
+            }

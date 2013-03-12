@@ -19,6 +19,8 @@ db = MongoClient(port=33000)['betfair']
 def to_json(x):
     if isinstance(x, datetime.date) or isinstance(x, datetime.datetime):
         return x.isoformat()
+    elif isinstance(x, ObjectId):
+        return str(x)
     else:
         repr_json = getattr(x, "__repr_json__", None)
         if repr_json:
@@ -134,9 +136,9 @@ def paper_summary():
     return template('templates/paper', json_strats=json_strats)
 
 
-@route('/paper/bets/<strategy_id>')
-def paper_summary(strategy_id):
-    bets = list(db[PAPER_BETS].find({'strategy_id': strategy_id}, fields={'_id': 0}))
+@route('/paper/summary/<strategy_id>/bets')
+def paper_summary_bets(strategy_id):
+    bets = list(db[PAPER_BETS].find({'strategy_id': ObjectId(strategy_id)}, fields={'_id': 0}))
     for bet in bets:
         bet['strategy_id'] = str(bet['strategy_id'])
     json_bets = json.dumps(bets, default=to_json)
@@ -152,7 +154,7 @@ def paper_strategies():
 
 
 @route('/paper/strategies/trading')
-def paper_strategies():
+def paper_strategies_trading():
     strats = get_traded_strategies(db[PAPER_TRADING], True)
     response.set_header('Content-Type', 'application/json')
     return json.dumps(strats, default=to_json)
