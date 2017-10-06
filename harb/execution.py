@@ -12,8 +12,8 @@ from betfair import API_T
 from common import extract_horse_name
 
 
-USERNAME = 'aristotle137'
-PASSWORD = 'Antiquark_87'
+USERNAME = ''
+PASSWORD = ''
 
 
 class ExecutionService(object):
